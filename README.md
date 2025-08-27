@@ -1,4 +1,4 @@
-# 🎉 Expense-manage - 智能团体开支管理系统
+# 🎉 BetterBillSplitter - 智能团体开支管理系统
 
 <div align="center" style="display: flex; align-items: center; justify-content: center;">
   <img src="public/static/imgs/taffynya_agadgqyaaofp2fq.png" width="64" style="margin-right: 20px;">
@@ -83,9 +83,9 @@
 ```bash
 # 下载必要的配置文件
 mkdir expense && cd expense
-wget https://github.com/SideCloudGroup/Expense-manage/raw/refs/heads/main/.example.env -O .env
-wget https://github.com/SideCloudGroup/Expense-manage/raw/refs/heads/main/docker-compose.yml
-wget https://github.com/SideCloudGroup/Expense-manage/raw/refs/heads/main/nginx.conf
+wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/.example.env -O .env
+wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/docker-compose.yml
+wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/nginx.conf
 ```
 
 #### 2. 配置环境变量
@@ -187,7 +187,7 @@ docker compose exec php-fpm php think createAdmin <username> <password>
 
 如果您在使用过程中遇到问题，欢迎：
 
-- 🐛 [提交 Issue](https://github.com/SideCloudGroup/Expense-manage/issues)
+- 🐛 [提交 Issue](https://github.com/SideCloudGroup/BetterBillSplitter/issues)
 
 ## 📄 许可证
 
@@ -197,5 +197,5 @@ docker compose exec php-fpm php think createAdmin <username> <password>
 
 <div align="center">
   <p>🎉 <strong>让每一次聚会都变得简单而快乐！</strong> 🎉</p>
-  <p>💖 感谢使用 Expense-manage 💖</p>
+  <p>💖 感谢使用 BetterBillSplitter 💖</p>
 </div>
