@@ -66,6 +66,7 @@
 </div>
 
 <script>
+    document.getElementById('totalamount').addEventListener('input', updateAmount);
     document.getElementById('party_id').value = '{$party.id}';
     updateAmount();
 </script>

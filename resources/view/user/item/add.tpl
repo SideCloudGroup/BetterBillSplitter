@@ -171,15 +171,6 @@
     function updateSelectedUserCount(count) {
         document.getElementById('selectedUserCount').textContent = count;
     }
-
-    // 监听派对选择变化（现在由HTMX处理）
-    // document.addEventListener('change', function(e) {
-    //     if (e.target.name === 'party_id') {
-    //         const partyId = e.target.value;
-    //     }
-    // });
-
-    document.getElementById('totalamount')?.addEventListener('input', updateAmount);
 </script>
 
 {include file="/footer"}
