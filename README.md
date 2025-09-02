@@ -81,7 +81,6 @@
 #### 1. 下载配置文件
 
 ```bash
-# 下载必要的配置文件
 mkdir expense && cd expense
 wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/.example.env -O .env
 wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/docker-compose.yml

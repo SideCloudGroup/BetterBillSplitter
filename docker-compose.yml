@@ -1,6 +1,6 @@
 services:
   php-fpm:
-    image: pplulee/expense-php:latest
+    image: ghcr.io/sidecloudgroup/betterbillsplitter:latest
     volumes:
       - .env:/var/www/html/.env
     depends_on:
