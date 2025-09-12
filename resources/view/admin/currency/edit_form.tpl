@@ -3,9 +3,7 @@
         <h3 class="card-title">编辑货币</h3>
         <div class="card-actions">
             <button type="button" class="btn btn-ghost-secondary"
-                    hx-get="/admin/currencies"
-                    hx-target="#currencyFormContainer"
-                    hx-swap="innerHTML">
+                    onclick="document.getElementById('currencyFormContainer').innerHTML = ''">
                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
@@ -62,9 +60,7 @@
             <div class="form-footer">
                 <button type="submit" class="btn btn-primary">保存修改</button>
                 <button type="button" class="btn btn-secondary"
-                        hx-get="/admin/currencies"
-                        hx-target="#currencyFormContainer"
-                        hx-swap="innerHTML">
+                        onclick="document.getElementById('currencyFormContainer').innerHTML = ''">
                     取消
                 </button>
             </div>

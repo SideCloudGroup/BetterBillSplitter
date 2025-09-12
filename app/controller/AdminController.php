@@ -474,8 +474,11 @@ class AdminController extends BaseController
                 return json(['ret' => 0, 'msg' => "该货币正在被 {$supportedPartyCount} 个派对支持，无法删除"]);
             }
 
-            // 检查是否有项目使用该货币
-            $itemCount = Db::table('item')->where('unit', $code)->count();
+            // 检查是否有项目通过派对使用该货币
+            $itemCount = Db::table('item')
+                ->join('party', 'item.party_id = party.id')
+                ->where('party.base_currency', $code)
+                ->count();
             if ($itemCount > 0) {
                 return json(['ret' => 0, 'msg' => "该货币正在被 {$itemCount} 个项目使用，无法删除"]);
             }
