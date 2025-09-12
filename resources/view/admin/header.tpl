@@ -92,7 +92,7 @@
         // 设置主题
         function setTheme(theme) {
             document.documentElement.setAttribute('data-bs-theme', theme);
-            localStorage.setItem('admin-theme', theme);
+            localStorage.setItem('theme', theme);
 
             // 更新图标
             if (theme === 'dark') {
@@ -113,14 +113,28 @@
 
         // 初始化主题
         function initTheme() {
-            // 优先使用用户保存的主题
-            const savedTheme = localStorage.getItem('admin-theme');
+            // 优先使用用户保存的主题（与用户面板共享）
+            const savedTheme = localStorage.getItem('theme');
             if (savedTheme) {
                 setTheme(savedTheme);
             } else {
-                // 默认使用亮色主题（因为侧边栏已经是暗色了）
-                setTheme('light');
+                // 如果没有保存的主题，检查系统偏好
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    setTheme('dark');
+                } else {
+                    setTheme('light');
+                }
             }
+        }
+
+        // 监听系统主题变化
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+                // 只有在用户没有手动设置主题时才跟随系统
+                if (!localStorage.getItem('theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
         }
 
         // 绑定事件
