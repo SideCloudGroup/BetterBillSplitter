@@ -96,3 +96,6 @@ Route::group('/admin', function () {
     Route::get('setting', 'admin/settings');
     Route::post('setting', 'admin/updateSetting');
 })->middleware(Admin::class);
+
+// 静态资源路由 - 处理 /static/ 路径下的所有文件
+Route::get('/static/<path>', 'static/serve')->pattern(['path' => '.*']);
