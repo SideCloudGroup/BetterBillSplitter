@@ -19,11 +19,16 @@ class Auth
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (app()->userService->getUser() === null) {
-            if (! app()->cookieService->checkCookie()) {
-                return $next($request);
-            }
+        // 从Cookie恢复登录
+        if (app()->cookieService->checkCookie()) {
+            return redirect("/");
         }
-        return redirect("/");
+
+        // 检查Session
+        if (app()->userService->getUser() !== null) {
+            return redirect("/");
+        }
+
+        return $next($request);
     }
 }

@@ -20,11 +20,14 @@ class User
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Session::get("userid") === null) {
-            if (! app()->cookieService->checkCookie()) {
-                return redirect("/auth/login");
-            }
+        if (Session::has('userid') && Session::get('auth') === true) {
+            return $next($request);
         }
-        return $next($request);
+
+        if (app()->cookieService->checkCookie()) {
+            return $next($request);
+        }
+
+        return redirect("/auth/login");
     }
 }

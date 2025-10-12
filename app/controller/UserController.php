@@ -13,12 +13,11 @@ use app\service\MFA\TOTP;
 use app\service\MFA\WebAuthn;
 use Exception;
 use think\exception\ValidateException;
-use think\facade\Cookie;
 use think\facade\Db;
 use think\facade\Session;
 use think\Request;
+use think\Response;
 use think\response\Json;
-use think\response\Response;
 use think\response\View;
 use voku\helper\AntiXSS;
 
@@ -28,7 +27,6 @@ class UserController extends BaseController
     {
         $users = json_decode($request->param('users'));
         $partyId = $request->param('party_id');
-
         try {
             validate(\app\validate\Item::class)->check([
                 'description' => $request->param('description'),
@@ -419,10 +417,8 @@ class UserController extends BaseController
 
     public function logout(Request $request): Json
     {
-        Session::delete('userid');
-        Session::delete('auth');
-        Cookie::delete('user');
-        return json(['ret' => 1, 'msg' => '登出成功'])->header(['HX-Redirect' => '/']);
+        app()->userService->logout();
+        return json(['ret' => 1, 'msg' => '登出成功'])->header(['HX-Redirect' => '/auth/login']);
     }
 
     public function profile(Request $request): View
@@ -593,7 +589,7 @@ class UserController extends BaseController
     /**
      * 下载派对最优支付方案
      */
-    public function downloadPartyBestPay(Request $request, int $partyId): \think\Response
+    public function downloadPartyBestPay(Request $request, int $partyId): Response
     {
         $userId = Session::get('userid');
         // 检查用户是否为派对成员

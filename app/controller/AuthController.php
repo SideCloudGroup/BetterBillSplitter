@@ -25,7 +25,8 @@ class AuthController extends BaseController
 {
     public function login(Request $request): Json
     {
-        if (Session::get('auth') === true) {
+        // 检查是否已经登录
+        if (app()->cookieService->checkCookie() || app()->userService->getUser() !== null) {
             return json(['ret' => 0, 'msg' => '已经登录'])->header(['HX-Redirect' => '/']);
         }
         $antixss = new AntiXSS();
@@ -81,7 +82,10 @@ class AuthController extends BaseController
 
     public function loginPage(): View|Redirect
     {
-        if (Session::get('userid') !== null && Session::get('auth') === true) {
+        if (app()->cookieService->checkCookie()) {
+            return redirect('/');
+        }
+        if (app()->userService->getUser() !== null) {
             return redirect('/');
         }
         return view('/auth/login');

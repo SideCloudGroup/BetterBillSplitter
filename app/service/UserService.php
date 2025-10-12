@@ -13,8 +13,10 @@ use Exception;
 use GuzzleHttp\Client as GuzzleHttpClient;
 use GuzzleHttp\Psr7\HttpFactory;
 use HCaptcha\HCaptcha;
+use think\facade\Cookie;
 use think\facade\Db;
 use think\facade\Log;
+use think\facade\Session;
 use think\Service;
 use Turnstile\Client\Client;
 use Turnstile\Turnstile;
@@ -22,7 +24,7 @@ use voku\helper\AntiXSS;
 
 class UserService extends Service
 {
-    private User $user;
+    private ?User $user = null;
 
     public function register()
     {
@@ -31,14 +33,52 @@ class UserService extends Service
 
     public function getUser(): User|null
     {
-        global $user;
-        if ($user === null) {
-            $user = (new User())->where('id', session('userid'))->findOrEmpty();
+        // 检查Session中是否有userid
+        if (! Session::has('userid')) {
+            $this->user = null;
+            return null;
         }
-        if ($user->isEmpty()) {
-            $user = null;
+
+        if (! Session::has('auth') || Session::get('auth') !== true) {
+            Session::clear();
+            Cookie::delete('user');
+            $this->user = null;
+            return null;
         }
-        return $user;
+
+        // 如果已经缓存了用户对象，直接返回
+        if ($this->user !== null) {
+            return $this->user;
+        }
+
+        // 从数据库获取用户信息
+        $_user = (new User())->where('id', Session::get('userid'))->findOrEmpty();
+
+        // 用户不存在，清理Session和Cookie
+        if ($_user->isEmpty()) {
+            Session::clear();
+            Cookie::delete('user');
+            $this->user = null;
+            return null;
+        }
+
+        // 检查用户是否被禁用
+        if ($_user->enable === false) {
+            Session::clear();
+            Cookie::delete('user');
+            $this->user = null;
+            return null;
+        }
+
+        $this->user = $_user;
+        return $this->user;
+    }
+
+    public function logout(): void
+    {
+        $this->user = null;
+        Session::clear();
+        Cookie::delete('user');
     }
 
     public function getUserList(): array
@@ -56,7 +96,7 @@ class UserService extends Service
         $userDetails = (new Item())->where('userid', $id)->select()->toArray();
         $totalPrice = '0';
         foreach ($userDetails as $item) {
-            $totalPrice = bcadd($totalPrice, (string)$item['amount'], 2);
+            $totalPrice = bcadd($totalPrice, (string) $item['amount'], 2);
         }
         return ['ret' => 1, 'data' => $userDetails, 'totalPrice' => $totalPrice];
     }
@@ -111,7 +151,7 @@ class UserService extends Service
             if (! isset($userUnpaid[$item->userid][$item->initiator])) {
                 $userUnpaid[$item->userid][$item->initiator] = '0';
             }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string)$item->amount, 2);
+            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string) $item->amount, 2);
         }
         $tmpResult = [];
         // 抵消付款人和收款人
@@ -163,8 +203,8 @@ class UserService extends Service
                 if (! isset($balance[$creditor])) {
                     $balance[$creditor] = '0';
                 }
-                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
+                $balance[$debtor] = bcsub($balance[$debtor], (string) $amount, 2);
+                $balance[$creditor] = bcadd($balance[$creditor], (string) $amount, 2);
             }
         }
 
@@ -209,7 +249,7 @@ class UserService extends Service
             if (! isset($optimizedDict[$debtor])) {
                 $optimizedDict[$debtor] = [];
             }
-            $optimizedDict[$debtor][$creditor] = (string)$amount;
+            $optimizedDict[$debtor][$creditor] = (string) $amount;
         }
 
         return [$optimizedDict, $stage1];
@@ -245,7 +285,7 @@ class UserService extends Service
             if (! isset($userUnpaid[$item->userid][$item->initiator])) {
                 $userUnpaid[$item->userid][$item->initiator] = '0';
             }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string)$item->amount, 2);
+            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string) $item->amount, 2);
         }
 
         $tmpResult = [];
@@ -301,8 +341,8 @@ class UserService extends Service
                 if (! isset($balance[$creditor])) {
                     $balance[$creditor] = '0';
                 }
-                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
+                $balance[$debtor] = bcsub($balance[$debtor], (string) $amount, 2);
+                $balance[$creditor] = bcadd($balance[$creditor], (string) $amount, 2);
             }
         }
 
@@ -347,7 +387,7 @@ class UserService extends Service
             if (! isset($optimizedDict[$debtor])) {
                 $optimizedDict[$debtor] = [];
             }
-            $optimizedDict[$debtor][$creditor] = (string)$amount;
+            $optimizedDict[$debtor][$creditor] = (string) $amount;
         }
 
         return [$optimizedDict, $stage1];

@@ -37,21 +37,55 @@ class CookieService extends Service
             if (empty($jwt)) {
                 return false;
             }
-            [, $payload_b64] = explode('.', $jwt);
-            $payload = JWT::jsonDecode(JWT::urlsafeB64Decode($payload_b64));
-            $user = (new User())->where('uuid', $payload->uuid)->findOrEmpty();
-            if ($user->isEmpty()) {
+
+            // 验证JWT格式
+            $parts = explode('.', $jwt);
+            if (count($parts) !== 3) {
+                Cookie::delete('user');
+                Session::clear();
                 return false;
             }
+
+            [, $payload_b64] = $parts;
+            $payload = JWT::jsonDecode(JWT::urlsafeB64Decode($payload_b64));
+
+            // 验证payload中必须有uuid
+            if (! isset($payload->uuid)) {
+                Cookie::delete('user');
+                Session::clear();
+                return false;
+            }
+
+            $user = (new User())->where('uuid', $payload->uuid)->findOrEmpty();
+            if ($user->isEmpty()) {
+                Cookie::delete('user');
+                Session::clear();
+                return false;
+            }
+
+            // 检查用户是否被禁用
+            if ($user->enable === false) {
+                Cookie::delete('user');
+                Session::clear();
+                return false;
+            }
+
+            // 验证JWT签名
             try {
                 $decoded = JWT::decode($jwt, new Key(hash('sha256', $user->password), 'HS256'));
             } catch (Exception) {
+                Cookie::delete('user');
+                Session::clear();
                 return false;
             }
+
+            // 设置Session（与正常登录保持一致）
+            Session::set('auth', true);
             Session::set('userid', $user->id);
             return true;
         } catch (Exception) {
             Cookie::delete('user');
+            Session::clear();
             return false;
         }
     }
