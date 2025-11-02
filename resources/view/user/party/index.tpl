@@ -1,5 +1,5 @@
 {include file="/user/header"}
-<title>{:env('APP_NAME')} - 我的派对</title>
+<title>{:getSetting('general_name')} - 我的派对</title>
 
 <div class="page">
     <div class="page-wrapper">

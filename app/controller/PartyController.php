@@ -529,7 +529,7 @@ class PartyController extends BaseController
             Db::commit();
 
             return json(['ret' => 1, 'msg' => '派对已删除'])
-                ->header(['HX-Refresh' => true]);
+                ->header(['HX-Refresh' => 'true']);
 
         } catch (Exception $e) {
             Db::rollback();
