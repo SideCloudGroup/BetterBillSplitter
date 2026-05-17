@@ -19,6 +19,12 @@
             "email": "448901948@qq.com"
         }
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/SideCloudGroup/think-migration"
+        }
+    ],
     "require": {
         "php": ">=8.2.0",
         "topthink/framework": "^v8.1.3",
@@ -31,13 +37,13 @@
         "ext-openssl": "*",
         "ramsey/uuid": "^4.0",
         "topthink/think-migration": "^v3.1.1",
-        "firebase/php-jwt": "^v6.11.1",
+        "firebase/php-jwt": "^v7.0",
         "symfony/http-client": "^7.1",
         "nyholm/psr7": "^1.8",
         "guzzlehttp/guzzle": "^7.9.3",
         "topthink/think-captcha": "^v3.0.11",
         "voku/anti-xss": "^4.1.42",
-        "web-auth/webauthn-framework": "^5.0",
+        "web-auth/webauthn-framework": "^5.3.1.0",
         "vectorface/googleauthenticator": "^v3.4",
         "topthink/think-validate": "v3.0.7",
         "seanhayes-com/laravel-hcaptcha": "^1.2",
