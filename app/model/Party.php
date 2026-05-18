@@ -16,6 +16,7 @@ use think\Model;
  * @property string $timezone
  * @property string $base_currency
  * @property string $supported_currencies
+ * @property string|null $archived_at
  * @property string $created_at
  * @property string $updated_at
  */
@@ -68,5 +69,10 @@ class Party extends Model
     public function isOwner(int $userId): bool
     {
         return $this->owner_id === $userId;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null && $this->archived_at !== '';
     }
 }

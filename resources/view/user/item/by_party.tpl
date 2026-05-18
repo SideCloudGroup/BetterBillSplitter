@@ -50,7 +50,9 @@
                                             <th>金额</th>
                                             <th>状态</th>
                                             <th>创建时间</th>
+                                            {if !$party.is_archived}
                                             <th>操作</th>
+                                            {/if}
                                         </tr>
                                         </thead>
                                         <tbody>
@@ -67,6 +69,7 @@
                                                     {/if}
                                                 </td>
                                                 <td>{$item.created_at}</td>
+                                                {if !$party.is_archived}
                                                 <td>
                                                     {if $item.paid}
                                                         <button class="btn btn-sm btn-warning"
@@ -80,6 +83,7 @@
                                                         </button>
                                                     {/if}
                                                 </td>
+                                                {/if}
                                             </tr>
                                         {/foreach}
                                         </tbody>
@@ -118,6 +122,7 @@
                                     </div>
                                     <p class="empty-title">还没有创建收款项目</p>
                                     <p class="empty-subtitle text-muted">您在该派对中还没有创建任何收款项目</p>
+                                    {if !$party.is_archived}
                                     <div class="empty-action">
                                         <a href="/user/item/add" class="btn btn-primary">
                                             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,6 +132,7 @@
                                             创建第一个收款项目
                                         </a>
                                     </div>
+                                    {/if}
                                 </div>
                             {/if}
                         </div>

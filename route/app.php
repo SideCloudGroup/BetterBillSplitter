@@ -66,6 +66,8 @@ Route::group('/user', function () {
     Route::get('/party/:id/edit', 'party/edit');
     Route::post('/party/:id/update', 'party/update');
     Route::post('/party/:id/leave', 'party/leave');
+    Route::post('/party/:id/archive', 'party/archive');
+    Route::get('/party/:partyId/archive/download', 'party/downloadArchiveExport');
     Route::post('/party/validate-timezone', 'party/validateTimezone');
     Route::get('/party/search-timezones', 'party/searchTimezones');
     Route::post('/party/currency-info', 'party/getCurrencyInfo');

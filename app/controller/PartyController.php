@@ -14,6 +14,7 @@ use think\facade\Db;
 use think\facade\Session;
 use think\Request;
 use think\response\Json;
+use think\response\Response;
 use think\response\View;
 
 class PartyController extends BaseController
@@ -159,6 +160,10 @@ class PartyController extends BaseController
             return json(['ret' => 0, 'msg' => '邀请码无效']);
         }
 
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '该派对已归档，无法加入']);
+        }
+
         $userId = Session::get('userid');
 
         // 检查是否已经是成员
@@ -203,6 +208,10 @@ class PartyController extends BaseController
             return view('/404');
         }
 
+        if ($party->isArchived()) {
+            return view('/404');
+        }
+
         // 获取所有可用货币
         $availableCurrencies = app()->currencyService->getAllAvailableCurrencies();
 
@@ -240,6 +249,10 @@ class PartyController extends BaseController
         // 检查用户是否为所有者
         if ($party->owner_id !== $userId) {
             return json(['ret' => 0, 'msg' => '只有派对所有者可以编辑']);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法编辑']);
         }
 
         $name = $request->param('name');
@@ -505,6 +518,10 @@ class PartyController extends BaseController
             return json(['ret' => 0, 'msg' => '只有派对所有者可以删除']);
         }
 
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法删除']);
+        }
+
         // 检查派对中是否有未支付项目
         $unpaidItems = Db::table('item')
             ->where('party_id', $id)
@@ -625,5 +642,79 @@ class PartyController extends BaseController
             'ret' => 1,
             'currency_info' => $currencyInfo
         ]);
+    }
+
+    /**
+     * 归档派对（仅所有者）：结算、锁定，返回归档快照下载地址
+     */
+    public function archive(Request $request, int $id): Json
+    {
+        $userId = Session::get('userid');
+        $party = Party::find($id);
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '派对不存在']);
+        }
+        if (! $party->isOwner($userId)) {
+            return json(['ret' => 0, 'msg' => '只有派对所有者可以归档']);
+        }
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '该派对已归档']);
+        }
+
+        try {
+            Db::startTrans();
+            $locked = Party::where('id', $id)->lock(true)->find();
+            if (! $locked || $locked->isArchived()) {
+                Db::rollback();
+
+                return json(['ret' => 0, 'msg' => '该派对已归档或不存在']);
+            }
+            Db::table('item')
+                ->where('party_id', $id)
+                ->where('paid', 0)
+                ->update(['paid' => 1]);
+            $locked->archived_at = date('Y-m-d H:i:s');
+            $locked->save();
+            Db::commit();
+        } catch (Exception $e) {
+            Db::rollback();
+
+            return json(['ret' => 0, 'msg' => '归档失败：' . $e->getMessage()]);
+        }
+
+        return json([
+            'ret' => 1,
+            'msg' => '归档成功，即将下载快照文件',
+            'download_url' => '/user/party/' . $id . '/archive/download',
+        ]);
+    }
+
+    /**
+     * 下载已归档派对的快照 JSON（成员可访问）
+     */
+    public function downloadArchiveExport(Request $request, int $partyId): Response
+    {
+        $userId = Session::get('userid');
+        $isMember = Db::table('party_member')
+            ->where('party_id', $partyId)
+            ->where('user_id', $userId)
+            ->count() > 0;
+        if (! $isMember) {
+            return response('无权限访问', 403);
+        }
+        $party = Party::find($partyId);
+        if (! $party || ! $party->isArchived()) {
+            return response('仅已归档派对可下载归档快照', 404);
+        }
+        $data = app()->userService->buildPartyExportData($partyId);
+        if ($data === []) {
+            return response('派对不存在', 404);
+        }
+        $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $filename = 'party_archive_' . $party->id . '_' . date('Ymd_His') . '.json';
+        $tempPath = runtime_path() . 'temp/' . uniqid('party_archive_', true) . '.json';
+        file_put_contents($tempPath, $json);
+
+        return download($tempPath, $filename, false, 60);
     }
 }

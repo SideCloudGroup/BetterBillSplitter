@@ -7,7 +7,12 @@
             <div class="page-header d-print-none">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h2 class="page-title">{$party.name} - 最优支付方案</h2>
+                        <h2 class="page-title">
+                            {$party.name} - 最优支付方案
+                            {if $party.archived_at}
+                                <span class="badge bg-secondary ms-2">已归档</span>
+                            {/if}
+                        </h2>
                         <div class="text-muted mt-1">
                             {if $party.description}{$party.description}{else}派对最优支付方案{/if}
                         </div>
@@ -21,7 +26,16 @@
                                 </svg>
                                 下载数据
                             </a>
-                            {if $isOwner}
+                            {if $party.archived_at}
+                                <a href="/user/party/{$party.id}/archive/download" class="btn btn-outline-primary" target="_blank">
+                                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                    下载归档快照
+                                </a>
+                            {/if}
+                            {if $isOwner && !$party.archived_at}
                                 <button class="btn btn-danger"
                                         hx-post="/user/party/{$party.id}/bestpay/clear"
                                         hx-confirm="此操作会将该派对中所有未支付项目标记为已支付，是否继续？"
@@ -196,7 +210,7 @@
                                     </ul>
                                 </div>
                             </div>
-                            {if $isOwner}
+                            {if $isOwner && !$party.archived_at}
                                 <div class="alert alert-info mt-3">
                                     <h6>派对所有者权限</h6>
                                     <p class="mb-0">

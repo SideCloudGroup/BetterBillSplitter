@@ -510,4 +510,44 @@ class UserService extends Service
             return false;
         }
     }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function getPartyItemsForExport(int $partyId): array
+    {
+        return Db::table('item')
+            ->join('user payer', 'item.userid = payer.id')
+            ->join('user initiator', 'item.initiator = initiator.id')
+            ->where('item.party_id', $partyId)
+            ->field('item.id, item.description, item.amount, item.userid, item.initiator, item.paid, item.party_id, item.created_at, payer.username as payer_name, initiator.username as initiator_name')
+            ->order('item.id', 'asc')
+            ->select()
+            ->toArray();
+    }
+
+    /**
+     * 最优支付下载与归档导出共用数据结构
+     *
+     * @return array<string, mixed>
+     */
+    public function buildPartyExportData(int $partyId): array
+    {
+        $party = Party::find($partyId);
+        if (! $party) {
+            return [];
+        }
+        $bestPay = $this->getPartyBestPay($partyId);
+
+        return [
+            'party_name' => $party->name,
+            'party_description' => $party->description,
+            'archived_at' => $party->archived_at,
+            'bestPayFinal' => $bestPay[0],
+            'bestPayAll' => $bestPay[1],
+            'userStat' => $this->getPartyUserStat($partyId),
+            'items' => $this->getPartyItemsForExport($partyId),
+            'export_time' => date('Y-m-d H:i:s'),
+        ];
+    }
 }

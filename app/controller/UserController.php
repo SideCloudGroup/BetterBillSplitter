@@ -71,6 +71,9 @@ class UserController extends BaseController
         }
 
         if ($party) {
+            if (! empty($party['archived_at'])) {
+                return json(['ret' => 0, 'msg' => '该派对已归档，无法添加收款项']);
+            }
             // 使用派对特定的货币
             $baseCurrency = $party['base_currency'];
             $supportedCurrencies = json_decode($party['supported_currencies'], true) ? : [$baseCurrency];
@@ -110,6 +113,7 @@ class UserController extends BaseController
         $parties = Db::table('party')
             ->join('party_member', 'party.id = party_member.party_id')
             ->where('party_member.user_id', $userId)
+            ->whereNull('party.archived_at')
             ->field('party.id, party.name, party.description')
             ->select();
 
@@ -383,6 +387,8 @@ class UserController extends BaseController
 
         // 将货币符号添加到party对象中
         $party['currency_symbol'] = $currencySymbol;
+        $partyModel = Party::find($partyId);
+        $party['is_archived'] = $partyModel ? $partyModel->isArchived() : false;
 
         return view('/user/item/by_party', [
             'party' => $party,
@@ -408,6 +414,11 @@ class UserController extends BaseController
             ->count();
         if (! $isMember) {
             return json(['ret' => 0, 'msg' => '您不是该派对的成员'])->header(['HX-Refresh' => 'true']);
+        }
+
+        $partyRow = Party::find($item->party_id);
+        if ($partyRow && $partyRow->isArchived()) {
+            return json(['ret' => 0, 'msg' => '该派对已归档，无法修改支付状态'])->header(['HX-Refresh' => 'true']);
         }
 
         $item->paid = $request->param('paid');
@@ -605,18 +616,12 @@ class UserController extends BaseController
         if (! $party) {
             return response('派对不存在', 404);
         }
-        // 获取最优支付方案
-        $bestPay = $this->app->userService->getPartyBestPay($partyId);
-        $userStat = $this->app->userService->getPartyUserStat($partyId);
-        $data = [
-            'party_name' => $party->name,
-            'party_description' => $party->description,
-            'bestPayFinal' => $bestPay[0],
-            'userStat' => $userStat,
-            'export_time' => date('Y-m-d H:i:s')
-        ];
+        $data = $this->app->userService->buildPartyExportData($partyId);
+        if ($data === []) {
+            return response('派对不存在', 404);
+        }
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        $filename = 'party_bestpay_' . $party->name . '_' . date('Ymd_His') . '.json';
+        $filename = 'party_bestpay_' . $party->id . '_' . date('Ymd_His') . '.json';
         $tempPath = runtime_path() . 'temp/' . uniqid('party_bestpay_', true) . '.json';
         file_put_contents($tempPath, $json);
         return download($tempPath, $filename, false, 60);
@@ -637,6 +642,10 @@ class UserController extends BaseController
 
         if ($party->owner_id !== $userId) {
             return json(['ret' => 0, 'msg' => '只有派对所有者可以清空记录']);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法清空记录']);
         }
 
         try {

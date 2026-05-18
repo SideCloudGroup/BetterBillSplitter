@@ -54,7 +54,12 @@
                                                             </svg>
                                                         </span>
                                                         <div class="flex-fill">
-                                                            <div class="font-weight-medium">{$party.name}</div>
+                                                            <div class="font-weight-medium">
+                                                                {$party.name}
+                                                                {if $party.archived_at}
+                                                                    <span class="badge bg-secondary ms-1">已归档</span>
+                                                                {/if}
+                                                            </div>
                                                             {if $party.description}
                                                                 <div class="text-muted">{$party.description}</div>
                                                             {/if}
@@ -64,6 +69,7 @@
                                                                class="btn btn-sm btn-outline-primary">
                                                                 查看详情
                                                             </a>
+                                                            {if !$party.archived_at}
                                                             <button class="btn btn-sm btn-outline-danger"
                                                                     hx-delete="/user/party/{$party.id}"
                                                                     hx-confirm="确定要删除这个派对吗？删除后所有数据将无法恢复。"
@@ -71,6 +77,7 @@
                                                                     hx-swap="none">
                                                                 删除派对
                                                             </button>
+                                                            {/if}
                                                         </div>
                                                     </div>
                                                     <div class="mt-3">
@@ -121,7 +128,12 @@
                                                             </svg>
                                                         </span>
                                                         <div class="flex-fill">
-                                                            <div class="font-weight-medium">{$party.name}</div>
+                                                            <div class="font-weight-medium">
+                                                                {$party.name}
+                                                                {if $party.archived_at}
+                                                                    <span class="badge bg-secondary ms-1">已归档</span>
+                                                                {/if}
+                                                            </div>
                                                             {if $party.description}
                                                                 <div class="text-muted">{$party.description}</div>
                                                             {/if}

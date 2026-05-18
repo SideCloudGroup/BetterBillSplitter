@@ -7,14 +7,19 @@
             <div class="page-header d-print-none">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h2 class="page-title">{$party.name}</h2>
+                        <h2 class="page-title">
+                            {$party.name}
+                            {if $party.archived_at}
+                                <span class="badge bg-secondary ms-2">已归档</span>
+                            {/if}
+                        </h2>
                         <div class="text-muted mt-1">
                             {if $party.description}{$party.description}{else}派对详情{/if}
                         </div>
                     </div>
                     <div class="col-auto ms-auto d-print-none">
                         <div class="btn-list">
-                            {if $isOwner}
+                            {if $isOwner && !$party.archived_at}
                                 <a href="/user/party/{$party.id}/edit" class="btn btn-warning">
                                     <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -30,6 +35,25 @@
                                 </svg>
                                 查看最优支付
                             </a>
+                            {if $party.archived_at}
+                                <a href="/user/party/{$party.id}/archive/download" class="btn btn-outline-primary" target="_blank">
+                                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                    下载归档快照
+                                </a>
+                            {elseif $isOwner}
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="archiveParty({$party.id})">
+                                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                                    </svg>
+                                    归档派对
+                                </button>
+                            {/if}
+                            {if !$party.archived_at}
                             <a href="/user/item/add" class="btn btn-primary">
                                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -37,6 +61,7 @@
                                 </svg>
                                 添加收款项
                             </a>
+                            {/if}
                             <a href="/user/party" class="btn btn-secondary">
                                 <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -113,6 +138,13 @@
                                 <label class="form-label">创建时间</label>
                                 <div class="form-control-plaintext">{$party.created_at}</div>
                             </div>
+
+                            {if $party.archived_at}
+                            <div class="mb-3">
+                                <label class="form-label">归档时间</label>
+                                <div class="form-control-plaintext">{$party.archived_at}</div>
+                            </div>
+                            {/if}
 
                             <div class="mb-3">
                                 <label class="form-label">成员数量</label>
@@ -204,6 +236,7 @@
                                     </div>
                                     <p class="empty-title">还没有收款项</p>
                                     <p class="empty-subtitle text-muted">添加第一个收款项来开始记账吧！</p>
+                                    {if !$party.archived_at}
                                     <div class="empty-action">
                                         <a href="/user/item/add" class="btn btn-primary">
                                             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,6 +246,7 @@
                                             添加收款项
                                         </a>
                                     </div>
+                                    {/if}
                                 </div>
                             {/if}
                         </div>
@@ -224,6 +258,44 @@
 </div>
 
 <script>
+    function archiveParty(partyId) {
+        Swal.fire({
+            title: '确认归档',
+            html: '归档后将：<ul class="text-start small"><li>将该派对所有未支付收款项标为已支付（结算）</li><li>无法再添加收款项或修改支付状态</li><li>无法编辑或删除派对、无法加入新成员</li></ul><p class="mb-0">确认后将打开新窗口下载归档 JSON 快照。</p>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '确认归档',
+            cancelButtonText: '取消'
+        }).then(function (result) {
+            if (!result.isConfirmed) {
+                return;
+            }
+            fetch('/user/party/' + partyId + '/archive', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data.ret === 1 && data.download_url) {
+                        window.open(data.download_url, '_blank');
+                        Swal.fire({ title: '归档成功', text: data.msg, icon: 'success' }).then(function () {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire('错误', data.msg || '归档失败', 'error');
+                    }
+                })
+                .catch(function () {
+                    Swal.fire('错误', '请求失败', 'error');
+                });
+        });
+    }
+
     function copyInviteCode(code) {
         navigator.clipboard.writeText(code).then(function () {
             Swal.fire({
