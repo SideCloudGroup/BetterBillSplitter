@@ -40,4 +40,4 @@ jobs:
         run: composer install --no-interaction --prefer-dist
 
       - name: Run PHPUnit
-        run: composer test
+        run: vendor/bin/phpunit
