@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\service;
@@ -51,7 +52,9 @@ class CurrencyService extends Service
         $globalRates = $this->getGlobalExchangeRates($baseCurrency);
 
         foreach ($supportedCurrencies as $currency) {
-            if ($currency == $baseCurrency) continue;
+            if ($currency == $baseCurrency) {
+                continue;
+            }
 
             if (isset($globalRates[$currency])) {
                 $exchangeRate[$currency] = $globalRates[$currency];
@@ -101,7 +104,7 @@ class CurrencyService extends Service
                 throw new Exception("Failed to fetch exchange rate");
             }
 
-            $data = json_decode((string) $res->getBody(), true);
+            $data = json_decode((string)$res->getBody(), true);
             if (! isset($data[$baseCurrency])) {
                 throw new Exception("Invalid exchange rate data. " . $baseCurrency . " not found");
             }
@@ -156,7 +159,7 @@ class CurrencyService extends Service
                 throw new Exception("Failed to fetch exchange rate");
             }
 
-            $data = json_decode((string) $res->getBody(), true);
+            $data = json_decode((string)$res->getBody(), true);
             if (! isset($data[$baseCurrency][$targetCurrency])) {
                 return null;
             }

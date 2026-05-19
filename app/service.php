@@ -1,7 +1,7 @@
 <?php
 
-use app\service\CookieService;
 use app\service\CurrencyService;
+use app\service\JwtTokenService;
 use app\service\SettingService;
 use app\service\UserService;
 
@@ -9,7 +9,7 @@ use app\service\UserService;
 // 服务在完成全局初始化之后执行
 return [
     UserService::class,
-    CookieService::class,
     CurrencyService::class,
     SettingService::class,
+    JwtTokenService::class,
 ];

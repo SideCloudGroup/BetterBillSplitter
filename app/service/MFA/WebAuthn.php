@@ -13,7 +13,6 @@ use Symfony\Component\Clock\NativeClock;
 use Symfony\Component\Serializer\SerializerInterface;
 use think\facade\Cache;
 use think\facade\Request;
-use think\facade\Session;
 use Webauthn\AttestationStatement\AndroidKeyAttestationStatementSupport;
 use Webauthn\AttestationStatement\AppleAttestationStatementSupport;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
@@ -41,7 +40,10 @@ class WebAuthn
 {
     public static int $timeout = 30_000;
 
-    public static function registerRequest(User $user): string
+    /**
+     * @return array{challenge_id: string, publicKey: mixed}
+     */
+    public static function registerRequest(User $user): array
     {
         $rpEntity = self::generateRPEntity();
         $userEntity = self::generateUserEntity($user);
@@ -61,8 +63,13 @@ class WebAuthn
             );
         $serializer = self::getSerializer();
         $jsonObject = $serializer->serialize($publicKeyCredentialCreationOptions, 'json');
-        Cache::set('webauthn_register:' . Session::getId(), $jsonObject, 300);
-        return $jsonObject;
+        $challengeId = bin2hex(random_bytes(16));
+        Cache::set('webauthn_register:' . $challengeId, $jsonObject, 300);
+
+        return [
+            'challenge_id' => $challengeId,
+            'publicKey' => json_decode($jsonObject, true),
+        ];
     }
 
     public static function generateRPEntity(): PublicKeyCredentialRpEntity
@@ -107,7 +114,7 @@ class WebAuthn
         return $factory->create();
     }
 
-    public static function registerHandle(User $user, array $data): array
+    public static function registerHandle(User $user, array $data, string $challengeId): array
     {
         $serializer = self::getSerializer();
         try {
@@ -123,8 +130,13 @@ class WebAuthn
             return ['ret' => 0, 'msg' => '密钥类型错误'];
         }
 
+        $cached = Cache::get('webauthn_register:' . $challengeId);
+        if ($cached === null || $cached === false) {
+            return ['ret' => 0, 'msg' => '注册会话已过期，请重试'];
+        }
+
         $publicKeyCredentialCreationOptions = $serializer->deserialize(
-            Cache::get('webauthn_register:' . Session::getId()),
+            $cached,
             PublicKeyCredentialCreationOptions::class,
             'json'
         );
@@ -151,6 +163,8 @@ class WebAuthn
         $webauthn->name = $data['name'] === '' ? null : $data['name'];
         $webauthn->type = 'passkey';
         $webauthn->save();
+        Cache::delete('webauthn_register:' . $challengeId);
+
         return ['ret' => 1, 'msg' => '注册成功'];
     }
 
@@ -163,13 +177,21 @@ class WebAuthn
         );
     }
 
-    public static function challengeRequest(): string
+    /**
+     * @return array{challenge_id: string, publicKey: mixed}
+     */
+    public static function challengeRequest(): array
     {
         $publicKeyCredentialRequestOptions = self::getPublicKeyCredentialRequestOptions();
         $serializer = self::getSerializer();
         $jsonObject = $serializer->serialize($publicKeyCredentialRequestOptions, 'json');
-        Cache::set('webauthn_assertion:' . Session::getId(), $jsonObject, 300);
-        return $jsonObject;
+        $challengeId = bin2hex(random_bytes(16));
+        Cache::set('webauthn_assertion:' . $challengeId, $jsonObject, 300);
+
+        return [
+            'challenge_id' => $challengeId,
+            'publicKey' => json_decode($jsonObject, true),
+        ];
     }
 
     public static function getPublicKeyCredentialRequestOptions(): PublicKeyCredentialRequestOptions
@@ -182,7 +204,7 @@ class WebAuthn
         );
     }
 
-    public static function challengeHandle(array $data): array
+    public static function challengeHandle(array $data, string $challengeId): array
     {
         $serializer = self::getSerializer();
         $publicKeyCredential = $serializer->deserialize(json_encode($data), PublicKeyCredential::class, 'json');
@@ -200,14 +222,22 @@ class WebAuthn
         if ($user->isEmpty()) {
             return ['ret' => 0, 'msg' => '用户不存在'];
         }
+        $cached = Cache::get('webauthn_assertion:' . $challengeId);
+        if ($cached === null || $cached === false) {
+            return ['ret' => 0, 'msg' => '登录会话已过期，请重试'];
+        }
         try {
             $publicKeyCredentialRequestOptions = $serializer->deserialize(
-                Cache::get('webauthn_assertion:' . Session::getId()),
+                $cached,
                 PublicKeyCredentialRequestOptions::class,
                 'json'
             );
             $authenticatorAssertionResponseValidator = self::getAuthenticatorAssertionResponseValidator();
-            $publicKeyCredentialSource_body = $serializer->deserialize($publicKeyCredentialSource->body, PublicKeyCredentialSource::class, 'json');
+            $publicKeyCredentialSource_body = $serializer->deserialize(
+                $publicKeyCredentialSource->body,
+                PublicKeyCredentialSource::class,
+                'json'
+            );
             $result = $authenticatorAssertionResponseValidator->check(
                 $publicKeyCredentialSource_body,
                 $publicKeyCredential->response,
@@ -221,6 +251,8 @@ class WebAuthn
         $publicKeyCredentialSource->body = $serializer->serialize($result, 'json');
         $publicKeyCredentialSource->used_at = date('Y-m-d H:i:s');
         $publicKeyCredentialSource->save();
+        Cache::delete('webauthn_assertion:' . $challengeId);
+
         return ['ret' => 1, 'msg' => '验证成功', 'user' => $user];
     }
 

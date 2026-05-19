@@ -1,0 +1,345 @@
+body {
+    margin: 0;
+    background: #eef2f7;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+/* ---------- 页面容器：水平居中 ---------- */
+.bbs-page {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+    animation: bbs-fade-in 0.2s ease-out;
+}
+
+.bbs-page--center .bbs-page-heading {
+    text-align: center;
+}
+
+.bbs-page--center .bbs-page-back {
+    display: inline-flex;
+    justify-content: center;
+}
+
+.bbs-page--center .bbs-page-subtitle {
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+    max-width: 36rem;
+}
+
+.bbs-page-header {
+    margin-bottom: 20px;
+}
+
+.bbs-page--center .bbs-page-header-extra {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.bbs-page--center .bbs-page-header-extra .ant-space {
+    justify-content: center;
+}
+
+@keyframes bbs-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bbs-surface-card {
+    border-radius: 12px !important;
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.08) !important;
+}
+
+.bbs-stat-card {
+    border-radius: 12px !important;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.bbs-stat-card:hover {
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1) !important;
+    transform: translateY(-1px);
+}
+
+.bbs-auth-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.bbs-auth-card {
+    border-radius: 16px !important;
+}
+
+.bbs-brand-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+
+.bbs-brand-mark .anticon {
+    font-size: 22px;
+}
+
+.bbs-content-inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+/* 主内容区 */
+.bbs-main-content {
+    margin: 24px !important;
+    min-height: 280px;
+}
+
+.bbs-app-header {
+    padding: 0 24px !important;
+    height: 56px !important;
+    line-height: 56px !important;
+}
+
+/* 表格横向滚动（小屏） */
+.bbs-page .ant-table-wrapper,
+.bbs-surface-card .ant-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bbs-page .ant-table a,
+.bbs-surface-card .ant-table a {
+    font-weight: 500;
+}
+
+/* 表单操作按钮居中（窄页） */
+.bbs-page--narrow .ant-form .ant-space {
+    width: 100%;
+    justify-content: center;
+}
+
+.bbs-page--narrow .ant-form-item:last-child .ant-btn-primary {
+    min-width: 120px;
+}
+
+/* 派对平铺选择（添加收款等） */
+.bbs-party-picker {
+    width: 100%;
+}
+
+.bbs-party-pick {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    text-align: left;
+    cursor: pointer;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    transition: border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.bbs-party-pick:hover {
+    border-color: #5eead4;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.12);
+    transform: translateY(-1px);
+}
+
+.bbs-party-pick__icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #f0fdfa;
+    color: #0f766e;
+    font-size: 20px;
+}
+
+.bbs-party-pick--active .bbs-party-pick__icon {
+    background: #ccfbf1;
+}
+
+.bbs-party-pick__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bbs-party-pick__name {
+    display: block;
+    font-size: 15px;
+    line-height: 1.35;
+}
+
+.bbs-party-pick__desc {
+    display: block;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.bbs-party-pick__check {
+    flex-shrink: 0;
+    font-size: 22px;
+    margin-top: 2px;
+}
+
+.bbs-member-check-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.bbs-member-check-group .ant-checkbox-wrapper {
+    margin-inline-start: 0 !important;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.bbs-member-check-group .ant-checkbox-wrapper-checked {
+    border-color: #0d9488;
+    background: #f0fdfa;
+}
+
+.bbs-split-preview .ant-alert-description {
+    line-height: 1.6;
+}
+
+/* ---------- 移动端顶栏导航 ---------- */
+.bbs-mobile-top {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.bbs-mobile-top .bbs-brand-mark {
+    color: #0f766e;
+}
+
+.bbs-mobile-top .bbs-brand-mark .anticon {
+    color: #0f766e;
+}
+
+.bbs-mobile-nav {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.28s ease, border-color 0.2s ease;
+    border-bottom: 1px solid transparent;
+}
+
+.bbs-mobile-nav--open {
+    max-height: 360px;
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bbs-mobile-nav .ant-menu {
+    border-inline-end: none !important;
+}
+
+.bbs-mobile-nav .ant-menu-item {
+    margin: 4px 8px !important;
+    border-radius: 8px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+}
+
+@media (max-width: 992px) {
+    .bbs-hide-mobile {
+        display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .bbs-main-content {
+        margin: 12px !important;
+    }
+
+    .bbs-app-header {
+        padding: 0 12px !important;
+    }
+
+    .bbs-page-header {
+        margin-bottom: 16px;
+    }
+
+    .bbs-page .ant-typography h3.ant-typography {
+        font-size: 1.25rem;
+    }
+
+    .bbs-auth-shell {
+        padding: 12px;
+        align-items: flex-start;
+        padding-top: max(12px, env(safe-area-inset-top));
+    }
+
+    .bbs-auth-card .ant-card-body {
+        padding: 20px 16px !important;
+    }
+
+    .bbs-page-header-extra .ant-btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    /* 管理后台行内表单改为纵向 */
+    .bbs-admin-inline-form.ant-form {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .bbs-admin-inline-form .ant-form-item {
+        margin-inline-end: 0 !important;
+        width: 100%;
+    }
+
+    .bbs-admin-inline-form .ant-input {
+        width: 100% !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .bbs-main-content {
+        margin: 8px !important;
+    }
+
+    .bbs-stat-card:hover {
+        transform: none;
+    }
+}

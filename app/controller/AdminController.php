@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\controller;
@@ -7,14 +8,14 @@ use app\BaseController;
 use app\model\Currency;
 use app\model\User;
 use Exception;
+use stdClass;
 use think\facade\Db;
 use think\Request;
 use think\response\Json;
-use think\response\View;
 
 class AdminController extends BaseController
 {
-    public function index(Request $request): View
+    public function index(Request $request): Json
     {
         // 用户统计
         $totalUsers = (new User())->count();
@@ -27,7 +28,11 @@ class AdminController extends BaseController
         $unpaidItems = Db::table('item')->where('paid', 0)->count();
 
         // 计算项目未支付比例
-        $unpaidItemsPercentage = $totalItems > 0 ? bcmul(bcdiv((string) $unpaidItems, (string) $totalItems, 3), '100', 1) : '0.0';
+        $unpaidItemsPercentage = $totalItems > 0 ? bcmul(
+            bcdiv((string)$unpaidItems, (string)$totalItems, 3),
+            '100',
+            1
+        ) : '0.0';
 
         // 派对统计
         $totalParties = Db::table('party')->count();
@@ -53,28 +58,32 @@ class AdminController extends BaseController
         // 派对活跃度百分比
         $partyActivityRate = $totalParties > 0 ? round(($activeParties / $totalParties) * 100, 1) : 0;
 
-        return view('/admin/index', [
-            'totalUsers' => $totalUsers,
-            'adminUsers' => $adminUsers,
-            'regularUsers' => $regularUsers,
-            'totalItems' => $totalItems,
-            'paidItems' => $paidItems,
-            'unpaidItems' => $unpaidItems,
-            'unpaidItemsPercentage' => $unpaidItemsPercentage,
-            'totalParties' => $totalParties,
-            'activeParties' => $activeParties,
-            'activeUsers' => $activeUsers,
-            'paymentCompletionRate' => $paymentCompletionRate,
-            'userActivityRate' => $userActivityRate,
-            'partyActivityRate' => $partyActivityRate
+        return json([
+            'ret' => 1,
+            'data' => [
+                'totalUsers' => $totalUsers,
+                'adminUsers' => $adminUsers,
+                'regularUsers' => $regularUsers,
+                'totalItems' => $totalItems,
+                'paidItems' => $paidItems,
+                'unpaidItems' => $unpaidItems,
+                'unpaidItemsPercentage' => $unpaidItemsPercentage,
+                'totalParties' => $totalParties,
+                'activeParties' => $activeParties,
+                'activeUsers' => $activeUsers,
+                'paymentCompletionRate' => $paymentCompletionRate,
+                'userActivityRate' => $userActivityRate,
+                'partyActivityRate' => $partyActivityRate,
+            ],
         ]);
     }
 
 
-    public function user(Request $request): View
+    public function user(Request $request): Json
     {
         $users = (new User())->field('id,username,is_admin')->select();
-        return view('/admin/user', ['users' => $users]);
+
+        return json(['ret' => 1, 'data' => ['users' => $users]]);
     }
 
     /**
@@ -131,13 +140,13 @@ class AdminController extends BaseController
             }
 
             // 检查是否为当前登录的管理员
-            $currentUser = User::find(session('userid'));
+            $currentUser = app('userService')->getUser();
             if ($currentUser && $currentUser->id == $userId) {
                 return json(['ret' => 0, 'msg' => '不能修改自己的管理员权限']);
             }
 
             // 更新管理员权限
-            $user->is_admin = (bool) $setAsAdmin;
+            $user->is_admin = (bool)$setAsAdmin;
             $user->save();
 
             $action = $setAsAdmin ? '设为管理员' : '取消管理员权限';
@@ -150,7 +159,7 @@ class AdminController extends BaseController
     /**
      * 派对管理页面
      */
-    public function party(Request $request): View
+    public function party(Request $request): Json
     {
         // 获取所有派对及其成员统计
         $parties = Db::table('party')
@@ -168,7 +177,9 @@ class AdminController extends BaseController
         if (! empty($partyIds)) {
             $partyStats = Db::table('item')
                 ->whereIn('party_id', $partyIds)
-                ->field('party_id, COUNT(*) as total_items, SUM(amount) as total_amount, COUNT(CASE WHEN paid = 1 THEN 1 END) as paid_items, SUM(CASE WHEN paid = 1 THEN amount ELSE 0 END) as paid_amount')
+                ->field(
+                    'party_id, COUNT(*) as total_items, SUM(amount) as total_amount, COUNT(CASE WHEN paid = 1 THEN 1 END) as paid_items, SUM(CASE WHEN paid = 1 THEN amount ELSE 0 END) as paid_amount'
+                )
                 ->group('party_id')
                 ->select()
                 ->toArray();
@@ -205,11 +216,19 @@ class AdminController extends BaseController
                 $parties[$key]['paid_items'] = $partyStat['paid_items'] ? : 0;
                 $parties[$key]['paid_amount'] = $partyStat['paid_amount'] ? : 0;
                 $parties[$key]['unpaid_items'] = $partyStat['total_items'] - $partyStat['paid_items'];
-                $parties[$key]['unpaid_amount'] = bcsub((string) $partyStat['total_amount'], (string) $partyStat['paid_amount'], 2);
+                $parties[$key]['unpaid_amount'] = bcsub(
+                    (string)$partyStat['total_amount'],
+                    (string)$partyStat['paid_amount'],
+                    2
+                );
 
                 // 计算支付完成率
                 $parties[$key]['payment_completion_rate'] = $partyStat['total_items'] > 0 ?
-                    bcmul(bcdiv((string) $partyStat['paid_items'], (string) $partyStat['total_items'], 3), '100', 1) : '0.0';
+                    bcmul(
+                        bcdiv((string)$partyStat['paid_items'], (string)$partyStat['total_items'], 3),
+                        '100',
+                        1
+                    ) : '0.0';
             } else {
                 $parties[$key]['total_items'] = 0;
                 $parties[$key]['total_amount'] = 0;
@@ -225,25 +244,23 @@ class AdminController extends BaseController
             $parties[$key]['currency_symbol'] = $allCurrencies[$baseCurrency] ?? '¥';
         }
 
-        return view('/admin/party/list', [
-            'parties' => $parties
-        ]);
+        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
     }
 
     /**
      * 获取派对成员列表页面
      */
-    public function partyMembers(Request $request): View
+    public function partyMembers(Request $request, int $id): Json
     {
-        $partyId = $request->param('id');
+        $partyId = $id;
         if (! $partyId) {
-            return view('/error', ['msg' => '参数错误']);
+            return json(['ret' => 0, 'msg' => '参数错误'], 400);
         }
 
         // 获取派对信息
         $party = Db::table('party')->where('id', $partyId)->find();
         if (! $party) {
-            return view('/error', ['msg' => '派对不存在']);
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
         }
 
         // 获取成员列表
@@ -251,14 +268,18 @@ class AdminController extends BaseController
             ->join('user', 'party_member.user_id = user.id')
             ->join('party', 'party_member.party_id = party.id')
             ->where('party_member.party_id', $partyId)
-            ->field('user.id, user.username, CASE WHEN party.owner_id = party_member.user_id THEN 1 ELSE 0 END as is_owner, party_member.joined_at')
+            ->field(
+                'user.id, user.username, CASE WHEN party.owner_id = party_member.user_id THEN 1 ELSE 0 END as is_owner, party_member.joined_at'
+            )
             ->order('party_member.joined_at', 'asc')
             ->select();
 
         // 获取派对统计信息 - 使用一次查询获取所有统计
         $partyStats = Db::table('item')
             ->where('party_id', $partyId)
-            ->field('COUNT(*) as total_items, SUM(amount) as total_amount, COUNT(CASE WHEN paid = 1 THEN 1 END) as paid_items, SUM(CASE WHEN paid = 1 THEN amount ELSE 0 END) as paid_amount')
+            ->field(
+                'COUNT(*) as total_items, SUM(amount) as total_amount, COUNT(CASE WHEN paid = 1 THEN 1 END) as paid_items, SUM(CASE WHEN paid = 1 THEN amount ELSE 0 END) as paid_amount'
+            )
             ->find();
 
         $totalItems = $partyStats['total_items'] ?? 0;
@@ -272,8 +293,12 @@ class AdminController extends BaseController
             'paid_items' => $paidItems,
             'paid_amount' => $paidAmount,
             'unpaid_items' => $totalItems - $paidItems,
-            'unpaid_amount' => bcsub((string) $totalAmount, (string) $paidAmount, 2),
-            'payment_completion_rate' => $totalItems > 0 ? bcmul(bcdiv((string) $paidItems, (string) $totalItems, 3), '100', 1) : '0.0'
+            'unpaid_amount' => bcsub((string)$totalAmount, (string)$paidAmount, 2),
+            'payment_completion_rate' => $totalItems > 0 ? bcmul(
+                bcdiv((string)$paidItems, (string)$totalItems, 3),
+                '100',
+                1
+            ) : '0.0'
         ];
 
         // 获取派对货币信息
@@ -283,11 +308,14 @@ class AdminController extends BaseController
             $currencySymbol = $currency ? $currency['symbol'] : '¥';
         }
 
-        return view('/admin/party/members', [
-            'party' => $party,
-            'members' => $members,
-            'stats' => $stats,
-            'currencySymbol' => $currencySymbol
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'members' => $members,
+                'stats' => $stats,
+                'currencySymbol' => $currencySymbol,
+            ],
         ]);
     }
 
@@ -305,13 +333,15 @@ class AdminController extends BaseController
             ->join('user', 'party_member.user_id = user.id')
             ->join('party', 'party_member.party_id = party.id')
             ->where('party_member.party_id', $partyId)
-            ->field('user.id, user.username, CASE WHEN party.owner_id = party_member.user_id THEN 1 ELSE 0 END as is_owner')
+            ->field(
+                'user.id, user.username, CASE WHEN party.owner_id = party_member.user_id THEN 1 ELSE 0 END as is_owner'
+            )
             ->select();
 
         return json(['ret' => 1, 'data' => $members]);
     }
 
-    public function settings(): View
+    public function settings(): Json
     {
         $settings = app()->settingService->getAllSettings();
         $settingData = [];
@@ -324,10 +354,14 @@ class AdminController extends BaseController
                 $settingData[$key] = app()->settingService->getSetting($key);
             }
         }
-        return view('/admin/setting/index', [
-            'settings' => $settings,
-            'settingData' => $settingData,
-            'categories' => $categories,
+
+        return json([
+            'ret' => 1,
+            'data' => [
+                'settings' => $settings,
+                'settingData' => $settingData,
+                'categories' => $categories,
+            ],
         ]);
     }
 
@@ -343,14 +377,12 @@ class AdminController extends BaseController
     /**
      * 货币管理页面
      */
-    public function currencies(Request $request): View
+    public function currencies(Request $request): Json
     {
         $currencyService = app()->currencyService;
         $currencies = $currencyService->getAllAvailableCurrencies();
 
-        return view('/admin/currencies', [
-            'currencies' => $currencies
-        ]);
+        return json(['ret' => 1, 'data' => ['currencies' => $currencies]]);
     }
 
     /**
@@ -362,7 +394,7 @@ class AdminController extends BaseController
         $name = $request->param('name', '');
         $nameEn = $request->param('name_en', '');
         $symbol = $request->param('symbol', '');
-        $decimalPlaces = (int) $request->param('decimal_places', 2);
+        $decimalPlaces = (int)$request->param('decimal_places', 2);
 
         if (empty($code) || empty($name) || empty($symbol)) {
             return json(['ret' => 0, 'msg' => '货币代码、名称和符号不能为空']);
@@ -408,7 +440,7 @@ class AdminController extends BaseController
         $name = $request->param('name', '');
         $nameEn = $request->param('name_en', '');
         $symbol = $request->param('symbol', '');
-        $decimalPlaces = (int) $request->param('decimal_places', 2);
+        $decimalPlaces = (int)$request->param('decimal_places', 2);
 
         if (empty($code) || empty($name) || empty($symbol)) {
             return json(['ret' => 0, 'msg' => '货币代码、名称和符号不能为空']);
@@ -428,7 +460,7 @@ class AdminController extends BaseController
             $currency->decimal_places = $decimalPlaces;
 
             if ($currency->save()) {
-                return json(['ret' => 1, 'msg' => '货币更新成功'])->header(['HX-Refresh' => 'true']);
+                return json(['ret' => 1, 'msg' => '货币更新成功']);
             } else {
                 return json(['ret' => 0, 'msg' => '保存失败']);
             }
@@ -485,7 +517,7 @@ class AdminController extends BaseController
 
             // 执行删除
             if ($currency->delete()) {
-                return json(['ret' => 1, 'msg' => '货币删除成功'])->header(['HX-Refresh' => 'true']);
+                return json(['ret' => 1, 'msg' => '货币删除成功']);
             } else {
                 return json(['ret' => 0, 'msg' => '删除失败']);
             }
@@ -495,31 +527,29 @@ class AdminController extends BaseController
     }
 
     /**
-     * 显示添加货币表单
+     * 添加货币表单（空壳，SPA 自建表单）
      */
-    public function addCurrencyForm(): View
+    public function addCurrencyForm(): Json
     {
-        return view('/admin/currency/add_form');
+        return json(['ret' => 1, 'data' => new stdClass()]);
     }
 
     /**
-     * 显示编辑货币表单
+     * 编辑货币表单数据
      */
-    public function editCurrencyForm(Request $request): View
+    public function editCurrencyForm(Request $request): Json
     {
         $code = $request->param('code');
         if (empty($code)) {
-            return view('/error', ['msg' => '货币代码不能为空']);
+            return json(['ret' => 0, 'msg' => '货币代码不能为空'], 400);
         }
 
         $currency = Currency::getByCode($code);
         if (! $currency) {
-            return view('/error', ['msg' => '货币不存在']);
+            return json(['ret' => 0, 'msg' => '货币不存在'], 404);
         }
 
-        return view('/admin/currency/edit_form', [
-            'currency' => $currency
-        ]);
+        return json(['ret' => 1, 'data' => ['currency' => $currency]]);
     }
 
 

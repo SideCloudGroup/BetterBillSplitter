@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\controller;
@@ -10,21 +11,20 @@ use app\model\PartyMember;
 use DateTime;
 use DateTimeZone;
 use Exception;
+use stdClass;
 use think\facade\Db;
-use think\facade\Session;
 use think\Request;
 use think\response\Json;
 use think\response\Response;
-use think\response\View;
 
 class PartyController extends BaseController
 {
     /**
      * 显示Party列表页面
      */
-    public function index(Request $request): View
+    public function index(Request $request): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 获取用户创建的Party
         $ownedParties = Party::where('owner_id', $userId)
@@ -38,31 +38,32 @@ class PartyController extends BaseController
             ->field('party.*')
             ->select();
 
-        return view('/user/party/index', [
-            'ownedParties' => $ownedParties,
-            'joinedParties' => $joinedParties
+        return json([
+            'ret' => 1,
+            'data' => [
+                'ownedParties' => $ownedParties,
+                'joinedParties' => $joinedParties,
+            ],
         ]);
     }
 
     /**
-     * 显示加入Party页面
+     * 加入派对页（SPA 无需数据）
      */
-    public function join(Request $request): View
+    public function join(Request $request): Json
     {
-        return view('/user/party/join');
+        return json(['ret' => 1, 'data' => new stdClass()]);
     }
 
     /**
-     * 显示创建Party页面
+     * 创建派对页数据
      */
-    public function create(Request $request): View
+    public function create(Request $request): Json
     {
         $currencyService = app()->currencyService;
         $currencies = $currencyService->getAllAvailableCurrencies();
 
-        return view('/user/party/create', [
-            'currencies' => $currencies
-        ]);
+        return json(['ret' => 1, 'data' => ['currencies' => $currencies]]);
     }
 
     /**
@@ -123,20 +124,18 @@ class PartyController extends BaseController
             $party->base_currency = $baseCurrency;
             $party->supported_currencies = json_encode($supportedCurrencies);
             $party->invite_code = Party::generateInviteCode();
-            $party->owner_id = Session::get('userid');
+            $party->owner_id = $this->currentUserId();
             $party->save();
 
             // 将创建者添加为成员
             $member = new PartyMember();
             $member->party_id = $party->id;
-            $member->user_id = Session::get('userid');
+            $member->user_id = $this->currentUserId();
             $member->save();
 
             Db::commit();
 
-            return json(['ret' => 1, 'msg' => '派对创建成功', 'party_id' => $party->id])
-                ->header(['HX-Redirect' => '/user/party']);
-
+            return json(['ret' => 1, 'msg' => '派对创建成功', 'party_id' => $party->id]);
         } catch (Exception $e) {
             Db::rollback();
             return json(['ret' => 0, 'msg' => '创建失败：' . $e->getMessage()]);
@@ -164,7 +163,7 @@ class PartyController extends BaseController
             return json(['ret' => 0, 'msg' => '该派对已归档，无法加入']);
         }
 
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 检查是否已经是成员
         $existingMember = PartyMember::where('party_id', $party->id)
@@ -182,171 +181,87 @@ class PartyController extends BaseController
             $member->user_id = $userId;
             $member->save();
 
-            return json(['ret' => 1, 'msg' => '成功加入派对：' . $party->name])
-                ->header(['HX-Redirect' => '/user/party']);
-
+            return json(['ret' => 1, 'msg' => '成功加入派对：' . $party->name]);
         } catch (Exception $e) {
             return json(['ret' => 0, 'msg' => '加入失败：' . $e->getMessage()]);
         }
     }
 
     /**
-     * 显示编辑Party页面
+     * 编辑派对页数据
      */
-    public function edit(Request $request, int $id): View
+    public function edit(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
-        // 获取派对基本信息
         $party = (new Party)->findOrEmpty($id);
         if ($party->isEmpty()) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
         }
 
-        // 检查用户是否为所有者
         if ($party->owner_id !== $userId) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '无权编辑'], 403);
         }
 
         if ($party->isArchived()) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '已归档的派对无法编辑'], 400);
         }
 
-        // 获取所有可用货币
         $availableCurrencies = app()->currencyService->getAllAvailableCurrencies();
 
-        // 获取当前支持的货币
         $currentSupportedCurrencies = [];
         if ($party->supported_currencies) {
             try {
-                $currentSupportedCurrencies = json_decode($party->supported_currencies, true);
-            } catch (Exception $e) {
+                $currentSupportedCurrencies = json_decode(
+                    $party->supported_currencies,
+                    true
+                ) ? : [$party->base_currency];
+            } catch (Exception) {
                 $currentSupportedCurrencies = [$party->base_currency];
             }
         } else {
             $currentSupportedCurrencies = [$party->base_currency];
         }
-        return view('/user/party/edit', [
-            'party' => $party,
-            'available_currencies' => $availableCurrencies,
-            'current_supported_currencies' => $currentSupportedCurrencies
+
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'available_currencies' => $availableCurrencies,
+                'current_supported_currencies' => $currentSupportedCurrencies,
+            ],
         ]);
     }
 
     /**
-     * 更新Party信息
+     * 派对详情
      */
-    public function update(Request $request, int $id): Json
+    public function show(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
-        // 获取派对基本信息
-        $party = Party::find($id);
-        if (! $party) {
-            return json(['ret' => 0, 'msg' => '派对不存在']);
-        }
-
-        // 检查用户是否为所有者
-        if ($party->owner_id !== $userId) {
-            return json(['ret' => 0, 'msg' => '只有派对所有者可以编辑']);
-        }
-
-        if ($party->isArchived()) {
-            return json(['ret' => 0, 'msg' => '已归档的派对无法编辑']);
-        }
-
-        $name = $request->param('name');
-        $description = $request->param('description', '');
-        $timezone = $request->param('timezone', 'Asia/Shanghai');
-        $baseCurrency = $request->param('base_currency', 'cny');
-        $supportedCurrencies = $request->param('supported_currencies', []);
-
-        if (empty($name)) {
-            return json(['ret' => 0, 'msg' => '派对名称不能为空']);
-        }
-
-        // 验证时区
-        $timezone = trim($timezone);
-        if (! in_array($timezone, timezone_identifiers_list())) {
-            return json(['ret' => 0, 'msg' => '无效的时区标识符：' . $timezone]);
-        }
-
-        // 验证基础货币
-        $availableCurrencies = app()->currencyService->getAllAvailableCurrencies();
-        if (! array_key_exists($baseCurrency, $availableCurrencies)) {
-            return json(['ret' => 0, 'msg' => '无效的基础货币']);
-        }
-
-        // 处理支持的货币
-        if (! is_array($supportedCurrencies)) {
-            $supportedCurrencies = [];
-        }
-
-        // 确保基础货币包含在支持的货币中
-        if (! in_array($baseCurrency, $supportedCurrencies)) {
-            $supportedCurrencies[] = $baseCurrency;
-        }
-
-        // 过滤掉空值
-        $supportedCurrencies = array_filter($supportedCurrencies);
-
-        // 验证所有支持的货币
-        foreach ($supportedCurrencies as $currency) {
-            if (! array_key_exists($currency, $availableCurrencies)) {
-                return json(['ret' => 0, 'msg' => "无效的货币：{$currency}"]);
-            }
-        }
-
-        try {
-            // 更新派对信息
-            $party->name = $name;
-            $party->description = $description;
-            $party->timezone = $timezone;
-            $party->base_currency = $baseCurrency;
-            $party->supported_currencies = json_encode($supportedCurrencies);
-            $party->save();
-
-            return json(['ret' => 1, 'msg' => '派对信息更新成功'])
-                ->header(['HX-Redirect' => "/user/party/{$id}"]);
-
-        } catch (Exception $e) {
-            return json(['ret' => 0, 'msg' => '更新失败：' . $e->getMessage()]);
-        }
-    }
-
-    /**
-     * 显示Party详情页面
-     */
-    public function show(Request $request, int $id): View
-    {
-        $userId = Session::get('userid');
-
-        // 获取派对基本信息
         $party = (new Party)->findOrEmpty($id);
         if ($party->isEmpty()) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
         }
 
-        // 检查用户是否为成员
         $isMember = Db::table('party_member')
                 ->where('party_id', $id)
                 ->where('user_id', $userId)
                 ->count() > 0;
 
         if (! $isMember) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '无权访问'], 403);
         }
 
         $isOwner = $party->owner_id === $userId;
 
-        // 获取派对成员（只返回必要信息）
         $members = Db::table('party_member')
             ->join('user', 'party_member.user_id = user.id')
             ->where('party_member.party_id', $id)
             ->field('user.id, user.username, party_member.joined_at')
             ->select();
 
-        // 获取派对账目
         $items = Db::table('item')
             ->join('user payer', 'item.userid = payer.id')
             ->join('user initiator', 'item.initiator = initiator.id')
@@ -354,24 +269,25 @@ class PartyController extends BaseController
             ->field('item.*, payer.username as payer_name, initiator.username as initiator_name')
             ->select();
 
-        // 获取所有可用货币的详细信息
         $currencyService = app()->currencyService;
         $allCurrencies = $currencyService->getAllAvailableCurrencies();
 
-        // 获取派对货币信息
         $currencySymbol = '¥';
         if ($party->base_currency) {
             $currency = Currency::getByCode($party->base_currency);
             $currencySymbol = $currency ? $currency->symbol : '¥';
         }
 
-        return view('/user/party/show', [
-            'party' => $party,
-            'members' => $members,
-            'items' => $items,
-            'isOwner' => $isOwner,
-            'all_currencies' => $allCurrencies,
-            'currencySymbol' => $currencySymbol
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'members' => $members,
+                'items' => $items,
+                'isOwner' => $isOwner,
+                'all_currencies' => $allCurrencies,
+                'currencySymbol' => $currencySymbol,
+            ],
         ]);
     }
 
@@ -380,7 +296,7 @@ class PartyController extends BaseController
      */
     public function leave(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         $party = Party::find($id);
         if (! $party) {
@@ -412,9 +328,7 @@ class PartyController extends BaseController
                 ->where('user_id', $userId)
                 ->delete();
 
-            return json(['ret' => 1, 'msg' => '已退出派对'])
-                ->header(['HX-Redirect' => '/user/party']);
-
+            return json(['ret' => 1, 'msg' => '已退出派对']);
         } catch (Exception $e) {
             return json(['ret' => 0, 'msg' => '退出失败：' . $e->getMessage()]);
         }
@@ -425,7 +339,7 @@ class PartyController extends BaseController
      */
     public function getMembers(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         $party = Party::find($id);
         if (! $party) {
@@ -450,17 +364,17 @@ class PartyController extends BaseController
     /**
      * 获取派对详细信息（包括货币和成员）
      */
-    public function getPartyInfo(Request $request, int $id): View
+    public function getPartyInfo(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         $party = Party::find($id);
         if (! $party) {
-            return view('/error', ['msg' => '派对不存在']);
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
         }
 
         if (! $party->isMember($userId)) {
-            return view('/error', ['msg' => '您不是该派对的成员']);
+            return json(['ret' => 0, 'msg' => '您不是该派对的成员'], 403);
         }
 
         $members = Db::table('party_member')
@@ -476,28 +390,29 @@ class PartyController extends BaseController
                 if (! is_array($supportedCurrencies)) {
                     $supportedCurrencies = [$party->base_currency];
                 }
-            } catch (Exception $e) {
+            } catch (Exception) {
                 $supportedCurrencies = [$party->base_currency];
             }
         } else {
             $supportedCurrencies = [$party->base_currency];
         }
 
-        // 确保基础货币包含在支持的货币中
         if (! in_array($party->base_currency, $supportedCurrencies)) {
             $supportedCurrencies[] = $party->base_currency;
         }
 
-        // 获取所有可用货币的详细信息
         $currencyService = app()->currencyService;
         $allCurrencies = $currencyService->getAllAvailableCurrencies();
 
-        return view('/user/item/party_details', [
-            'party' => $party,
-            'members' => $members,
-            'base_currency' => $party->base_currency,
-            'supported_currencies' => $supportedCurrencies,
-            'all_currencies' => $allCurrencies
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'members' => $members,
+                'base_currency' => $party->base_currency,
+                'supported_currencies' => $supportedCurrencies,
+                'all_currencies' => $allCurrencies,
+            ],
         ]);
     }
 
@@ -506,7 +421,7 @@ class PartyController extends BaseController
      */
     public function destroy(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         $party = Party::find($id);
         if (! $party) {
@@ -545,9 +460,7 @@ class PartyController extends BaseController
             $party->delete();
             Db::commit();
 
-            return json(['ret' => 1, 'msg' => '派对已删除'])
-                ->header(['HX-Refresh' => 'true']);
-
+            return json(['ret' => 1, 'msg' => '派对已删除']);
         } catch (Exception $e) {
             Db::rollback();
             return json(['ret' => 0, 'msg' => '删除失败：' . $e->getMessage()]);
@@ -649,7 +562,7 @@ class PartyController extends BaseController
      */
     public function archive(Request $request, int $id): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
         $party = Party::find($id);
         if (! $party) {
             return json(['ret' => 0, 'msg' => '派对不存在']);
@@ -685,8 +598,87 @@ class PartyController extends BaseController
         return json([
             'ret' => 1,
             'msg' => '归档成功，即将下载快照文件',
-            'download_url' => '/user/party/' . $id . '/archive/download',
+            'download_url' => '/api/user/party/' . $id . '/archive/download',
         ]);
+    }
+
+    /**
+     * 更新Party信息
+     */
+    public function update(Request $request, int $id): Json
+    {
+        $userId = $this->currentUserId();
+
+        // 获取派对基本信息
+        $party = Party::find($id);
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '派对不存在']);
+        }
+
+        // 检查用户是否为所有者
+        if ($party->owner_id !== $userId) {
+            return json(['ret' => 0, 'msg' => '只有派对所有者可以编辑']);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法编辑']);
+        }
+
+        $name = $request->param('name');
+        $description = $request->param('description', '');
+        $timezone = $request->param('timezone', 'Asia/Shanghai');
+        $baseCurrency = $request->param('base_currency', 'cny');
+        $supportedCurrencies = $request->param('supported_currencies', []);
+
+        if (empty($name)) {
+            return json(['ret' => 0, 'msg' => '派对名称不能为空']);
+        }
+
+        // 验证时区
+        $timezone = trim($timezone);
+        if (! in_array($timezone, timezone_identifiers_list())) {
+            return json(['ret' => 0, 'msg' => '无效的时区标识符：' . $timezone]);
+        }
+
+        // 验证基础货币
+        $availableCurrencies = app()->currencyService->getAllAvailableCurrencies();
+        if (! array_key_exists($baseCurrency, $availableCurrencies)) {
+            return json(['ret' => 0, 'msg' => '无效的基础货币']);
+        }
+
+        // 处理支持的货币
+        if (! is_array($supportedCurrencies)) {
+            $supportedCurrencies = [];
+        }
+
+        // 确保基础货币包含在支持的货币中
+        if (! in_array($baseCurrency, $supportedCurrencies)) {
+            $supportedCurrencies[] = $baseCurrency;
+        }
+
+        // 过滤掉空值
+        $supportedCurrencies = array_filter($supportedCurrencies);
+
+        // 验证所有支持的货币
+        foreach ($supportedCurrencies as $currency) {
+            if (! array_key_exists($currency, $availableCurrencies)) {
+                return json(['ret' => 0, 'msg' => "无效的货币：{$currency}"]);
+            }
+        }
+
+        try {
+            // 更新派对信息
+            $party->name = $name;
+            $party->description = $description;
+            $party->timezone = $timezone;
+            $party->base_currency = $baseCurrency;
+            $party->supported_currencies = json_encode($supportedCurrencies);
+            $party->save();
+
+            return json(['ret' => 1, 'msg' => '派对信息更新成功']);
+        } catch (Exception $e) {
+            return json(['ret' => 0, 'msg' => '更新失败：' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -694,11 +686,11 @@ class PartyController extends BaseController
      */
     public function downloadArchiveExport(Request $request, int $partyId): Response
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
         $isMember = Db::table('party_member')
-            ->where('party_id', $partyId)
-            ->where('user_id', $userId)
-            ->count() > 0;
+                ->where('party_id', $partyId)
+                ->where('user_id', $userId)
+                ->count() > 0;
         if (! $isMember) {
             return response('无权限访问', 403);
         }

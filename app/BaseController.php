@@ -1,9 +1,11 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app;
 
 use think\App;
+use think\exception\HttpException;
 use think\exception\ValidateException;
 use think\Validate;
 
@@ -53,6 +55,19 @@ abstract class BaseController
     // 初始化
     protected function initialize()
     {
+    }
+
+    /**
+     * @throws HttpException
+     */
+    protected function currentUserId(): int
+    {
+        $user = app('userService')->getUser();
+        if ($user === null) {
+            throw new HttpException(401, '未登录');
+        }
+
+        return $user->id;
     }
 
     /**

@@ -1,0 +1,35 @@
+# 依赖
+node_modules/
+
+# 构建产物（本地 dist；生产构建输出在 ../public/spa）
+dist/
+dist-ssr/
+
+# 环境变量（与仓库根 .gitignore 一致）
+.env
+.env.*
+!.env.example
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript / Vite 缓存
+*.tsbuildinfo
+.vite/
+
+# 测试与覆盖率
+coverage/
+
+# 编辑器与系统（与仓库根 .gitignore 一致）
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.sw?
+
+# 可选本地覆盖
+*.local

@@ -11,6 +11,8 @@ use think\exception\ValidateException;
 use think\Response;
 use Throwable;
 
+use function is_string;
+
 /**
  * 应用异常处理类
  */
@@ -51,9 +53,38 @@ class ExceptionHandle extends Handle
      */
     public function render($request, Throwable $e): Response
     {
-        // 添加自定义异常处理机制
+        if ($e instanceof HttpResponseException) {
+            return $e->getResponse();
+        }
 
-        // 其他错误交给系统处理
-        return parent::render($request, $e);
+        $pathinfo = $request->pathinfo();
+        if (! is_string($pathinfo) || ! str_starts_with($pathinfo, 'api/')) {
+            return parent::render($request, $e);
+        }
+
+        if ($e instanceof ValidateException) {
+            return json(['ret' => 0, 'msg' => $e->getMessage()], 422);
+        }
+
+        if ($e instanceof HttpException) {
+            $code = $e->getStatusCode();
+            $msg = $e->getMessage() ? : match ($code) {
+                400 => '请求无效',
+                401 => '未授权',
+                403 => '禁止访问',
+                404 => '未找到',
+                405 => '方法不允许',
+                default => '请求错误',
+            };
+
+            return json(['ret' => 0, 'msg' => $msg], $code);
+        }
+
+        $msg = '服务器错误';
+        if ($this->app->isDebug()) {
+            $msg = $e->getMessage();
+        }
+
+        return json(['ret' => 0, 'msg' => $msg], 500);
     }
 }

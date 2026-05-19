@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\command;
@@ -50,7 +51,6 @@ class CreateAdmin extends Command
             $output->writeln("管理员权限: 是");
 
             return true;
-
         } catch (Exception $e) {
             $output->error("创建管理员用户失败: " . $e->getMessage());
             return false;

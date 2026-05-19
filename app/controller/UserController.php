@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\controller;
@@ -14,11 +15,9 @@ use app\service\MFA\WebAuthn;
 use Exception;
 use think\exception\ValidateException;
 use think\facade\Db;
-use think\facade\Session;
 use think\Request;
 use think\Response;
 use think\response\Json;
-use think\response\View;
 use voku\helper\AntiXSS;
 
 class UserController extends BaseController
@@ -41,7 +40,7 @@ class UserController extends BaseController
 
         // 验证派对权限
         if ($partyId) {
-            $userId = Session::get('userid');
+            $userId = $this->currentUserId();
             $isMember = Db::table('party_member')
                 ->where('party_id', $partyId)
                 ->where('user_id', $userId)
@@ -57,7 +56,7 @@ class UserController extends BaseController
                     ->column('user_id');
 
                 foreach ($users as $user) {
-                    if (! in_array((int) $user, $partyMemberIds)) {
+                    if (! in_array((int)$user, $partyMemberIds)) {
                         return json(['ret' => 0, 'msg' => "用户ID {$user} 不属于该派对"]);
                     }
                 }
@@ -96,18 +95,25 @@ class UserController extends BaseController
             if (! isset($exchangeRate[$request->param('unit')])) {
                 return json(['ret' => 0, 'msg' => '无法获取该货币的汇率信息']);
             }
-            $amount = bcdiv((string) $request->param('amount'), (string) $exchangeRate[$request->param('unit')], 2);
+            $amount = bcdiv((string)$request->param('amount'), (string)$exchangeRate[$request->param('unit')], 2);
         }
 
         foreach ($users as $user) {
-            app()->userService->addItem((int) $user, $request->param('description'), (float) $amount, session('userid'), (int) $partyId);
+            app()->userService->addItem(
+                (int)$user,
+                $request->param('description'),
+                (float)$amount,
+                $this->currentUserId(),
+                (int)$partyId
+            );
         }
-        return json(['ret' => 1, 'msg' => '添加成功'])->header(['HX-Refresh' => "true"]);
+
+        return json(['ret' => 1, 'msg' => '添加成功']);
     }
 
-    public function addItem(Request $request): View
+    public function addItem(Request $request): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 获取用户加入的所有Party（只返回基本信息）
         $parties = Db::table('party')
@@ -117,17 +123,15 @@ class UserController extends BaseController
             ->field('party.id, party.name, party.description')
             ->select();
 
-        return view('/user/item/add', [
-            'parties' => $parties
-        ]);
+        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
     }
 
     /**
      * 首页 - 显示统计信息和概览
      */
-    public function index(Request $request): View
+    public function index(Request $request): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
         $user = app()->userService->getUser();
 
         // 获取用户加入的所有派对
@@ -179,7 +183,11 @@ class UserController extends BaseController
         foreach ($userItems as $item) {
             $stats['total_items_to_pay']++;
             if ($item['paid'] == 0) {
-                $stats['total_unpaid_amount'] = bcadd((string) $stats['total_unpaid_amount'], (string) $item['amount'], 2);
+                $stats['total_unpaid_amount'] = bcadd(
+                    (string)$stats['total_unpaid_amount'],
+                    (string)$item['amount'],
+                    2
+                );
                 $stats['total_unpaid_items']++;
             }
         }
@@ -187,7 +195,11 @@ class UserController extends BaseController
         foreach ($initiatorItems as $item) {
             $stats['total_items_created']++;
             if ($item['paid'] == 0) {
-                $stats['total_receivable_amount'] = bcadd((string) $stats['total_receivable_amount'], (string) $item['amount'], 2);
+                $stats['total_receivable_amount'] = bcadd(
+                    (string)$stats['total_receivable_amount'],
+                    (string)$item['amount'],
+                    2
+                );
                 $stats['total_receivable_items']++;
             }
         }
@@ -198,7 +210,11 @@ class UserController extends BaseController
         $currencyCode = $defaultCurrency ? strtoupper($defaultCurrency->code) : 'CNY';
 
         // 计算衍生统计数据
-        $stats['total_amount'] = bcadd((string) $stats['total_unpaid_amount'], (string) $stats['total_receivable_amount'], 2);
+        $stats['total_amount'] = bcadd(
+            (string)$stats['total_unpaid_amount'],
+            (string)$stats['total_receivable_amount'],
+            2
+        );
         $stats['total_items'] = $stats['total_items_created'] + $stats['total_items_to_pay'];
 
         // 计算实际的项目总数（所有相关项目）
@@ -206,8 +222,16 @@ class UserController extends BaseController
 
         // 计算百分比（基于实际项目数量）
         if ($stats['total_all_items'] > 0) {
-            $stats['unpaid_percentage'] = bcmul(bcdiv((string) $stats['total_unpaid_items'], (string) $stats['total_all_items'], 3), '100', 1);
-            $stats['receivable_percentage'] = bcmul(bcdiv((string) $stats['total_receivable_items'], (string) $stats['total_all_items'], 3), '100', 1);
+            $stats['unpaid_percentage'] = bcmul(
+                bcdiv((string)$stats['total_unpaid_items'], (string)$stats['total_all_items'], 3),
+                '100',
+                1
+            );
+            $stats['receivable_percentage'] = bcmul(
+                bcdiv((string)$stats['total_receivable_items'], (string)$stats['total_all_items'], 3),
+                '100',
+                1
+            );
         } else {
             $stats['unpaid_percentage'] = '0.0';
             $stats['receivable_percentage'] = '0.0';
@@ -216,19 +240,22 @@ class UserController extends BaseController
         // 获取最近的5个派对
         $recentParties = array_slice($parties, 0, 5);
 
-        return view('/user/dashboard/index', [
-            'user' => $user,
-            'parties' => $parties,
-            'stats' => $stats,
-            'recentParties' => $recentParties,
-            'currencySymbol' => $currencySymbol,
-            'currencyCode' => $currencyCode
+        return json([
+            'ret' => 1,
+            'data' => [
+                'user' => $user,
+                'parties' => $parties,
+                'stats' => $stats,
+                'recentParties' => $recentParties,
+                'currencySymbol' => $currencySymbol,
+                'currencyCode' => $currencyCode,
+            ],
         ]);
     }
 
-    public function payment(Request $request): View
+    public function payment(Request $request): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 获取用户加入的所有派对，并计算每个派对的待支付总金额
         $parties = Db::table('party')
@@ -252,14 +279,12 @@ class UserController extends BaseController
             $parties[$key]['currency_symbol'] = $currency ? $currency->symbol : '¥';
         }
 
-        return view('/user/payment/list', [
-            'parties' => $parties
-        ]);
+        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
     }
 
-    public function paymentByParty(Request $request, int $partyId): View
+    public function paymentByParty(Request $request, int $partyId): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 验证用户是否为该派对成员
         $isMember = Db::table('party_member')
@@ -267,7 +292,7 @@ class UserController extends BaseController
             ->where('user_id', $userId)
             ->count();
         if (! $isMember) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '未找到派对或无权访问'], 404);
         }
 
         // 获取派对信息
@@ -286,7 +311,7 @@ class UserController extends BaseController
         // 计算总金额
         $totalAmount = '0';
         foreach ($items as $item) {
-            $totalAmount = bcadd($totalAmount, (string) $item['amount'], 2);
+            $totalAmount = bcadd($totalAmount, (string)$item['amount'], 2);
         }
 
         // 获取派对货币信息
@@ -300,16 +325,19 @@ class UserController extends BaseController
         // 将货币符号添加到party对象中
         $party['currency_symbol'] = $currencySymbol;
 
-        return view('/user/payment/by_party', [
-            'party' => $party,
-            'items' => $items,
-            'totalAmount' => $totalAmount
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'items' => $items,
+                'totalAmount' => $totalAmount,
+            ],
         ]);
     }
 
-    public function itemList(Request $request): View
+    public function itemList(Request $request): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 获取用户加入的所有派对，并计算每个派对的未收款总金额
         $parties = Db::table('party')
@@ -333,14 +361,12 @@ class UserController extends BaseController
             $parties[$key]['currency_symbol'] = $currency ? $currency->symbol : '¥';
         }
 
-        return view('/user/item/list', [
-            'parties' => $parties
-        ]);
+        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
     }
 
-    public function itemListByParty(Request $request, int $partyId): View
+    public function itemListByParty(Request $request, int $partyId): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 验证用户是否为该派对成员
         $isMember = Db::table('party_member')
@@ -348,7 +374,7 @@ class UserController extends BaseController
             ->where('user_id', $userId)
             ->count();
         if (! $isMember) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '未找到派对或无权访问'], 404);
         }
 
         // 获取派对信息
@@ -369,11 +395,11 @@ class UserController extends BaseController
         $unpaidAmount = '0';
 
         foreach ($items as $item) {
-            $totalAmount = bcadd($totalAmount, (string) $item['amount'], 2);
+            $totalAmount = bcadd($totalAmount, (string)$item['amount'], 2);
             if ($item['paid'] == 1) {
-                $paidAmount = bcadd($paidAmount, (string) $item['amount'], 2);
+                $paidAmount = bcadd($paidAmount, (string)$item['amount'], 2);
             } else {
-                $unpaidAmount = bcadd($unpaidAmount, (string) $item['amount'], 2);
+                $unpaidAmount = bcadd($unpaidAmount, (string)$item['amount'], 2);
             }
         }
 
@@ -390,59 +416,69 @@ class UserController extends BaseController
         $partyModel = Party::find($partyId);
         $party['is_archived'] = $partyModel ? $partyModel->isArchived() : false;
 
-        return view('/user/item/by_party', [
-            'party' => $party,
-            'items' => $items,
-            'totalAmount' => $totalAmount,
-            'paidAmount' => $paidAmount,
-            'unpaidAmount' => $unpaidAmount
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'items' => $items,
+                'totalAmount' => $totalAmount,
+                'paidAmount' => $paidAmount,
+                'unpaidAmount' => $unpaidAmount,
+            ],
         ]);
     }
 
     public function updateItemStatus(Request $request): Json
     {
-        $item = (new Item())->where('id', $request->param('id'))->where('initiator', session('userid'))->findOrEmpty();
+        $item = (new Item())->where('id', $request->param('id'))->where(
+            'initiator',
+            $this->currentUserId()
+        )->findOrEmpty();
         if ($item->isEmpty()) {
-            return json(['ret' => 0, 'msg' => '未找到指定项目'])->header(['HX-Refresh' => 'true']);
+            return json(['ret' => 0, 'msg' => '未找到指定项目']);
         }
 
         // 验证用户是否为该收款项所属派对的成员
-        $userId = session('userid');
+        $userId = $this->currentUserId();
         $isMember = Db::table('party_member')
             ->where('party_id', $item->party_id)
             ->where('user_id', $userId)
             ->count();
         if (! $isMember) {
-            return json(['ret' => 0, 'msg' => '您不是该派对的成员'])->header(['HX-Refresh' => 'true']);
+            return json(['ret' => 0, 'msg' => '您不是该派对的成员']);
         }
 
         $partyRow = Party::find($item->party_id);
         if ($partyRow && $partyRow->isArchived()) {
-            return json(['ret' => 0, 'msg' => '该派对已归档，无法修改支付状态'])->header(['HX-Refresh' => 'true']);
+            return json(['ret' => 0, 'msg' => '该派对已归档，无法修改支付状态']);
         }
 
         $item->paid = $request->param('paid');
         $item->save();
-        return json(['ret' => 1, 'msg' => '更新成功'])->header(['HX-Refresh' => 'true']);
+        return json(['ret' => 1, 'msg' => '更新成功']);
     }
 
     public function logout(Request $request): Json
     {
         app()->userService->logout();
-        return json(['ret' => 1, 'msg' => '登出成功'])->header(['HX-Redirect' => '/auth/login']);
+        return json(['ret' => 1, 'msg' => '登出成功']);
     }
 
-    public function profile(Request $request): View
+    public function profile(Request $request): Json
     {
         $user = app()->userService->getUser();
         $webauthnDevices = (new MFACredential())->where('userid', $user->id)->where('type', 'passkey')->select();
         $totpDevices = (new MFACredential())->where('userid', $user->id)->where('type', 'totp')->select();
         $fidoDevices = (new MFACredential())->where('userid', $user->id)->where('type', 'fido')->select();
-        return view('/user/account/profile', [
-            'user' => $user,
-            'webauthn_devices' => $webauthnDevices,
-            'totp_devices' => $totpDevices,
-            'fido_devices' => $fidoDevices,
+
+        return json([
+            'ret' => 1,
+            'data' => [
+                'user' => $user,
+                'webauthn_devices' => $webauthnDevices,
+                'totp_devices' => $totpDevices,
+                'fido_devices' => $fidoDevices,
+            ],
         ]);
     }
 
@@ -450,34 +486,36 @@ class UserController extends BaseController
     {
         $user = app()->userService->getUser();
 
-        // 验证用户只能更新自己的资料
-        if ($user->id != session('userid')) {
-            return json(['ret' => 0, 'msg' => '无权限更新其他用户资料'])->header(['HX-Refresh' => 'true']);
-        }
-
         $user->username = $request->param('username');
         $user->save();
-        return json(['ret' => 1, 'msg' => '更新成功'])->header(['HX-Refresh' => 'true']);
+
+        return json(['ret' => 1, 'msg' => '更新成功']);
     }
 
     public function webauthnRequestRegister(Request $request): Json
     {
         $user = app()->userService->getUser();
-        return json(json_decode(WebAuthn::registerRequest($user)));
+        return json(WebAuthn::registerRequest($user));
     }
 
     public function webauthnRegisterHandler(Request $request): Json
     {
         $user = app()->userService->getUser();
         $antixss = new AntiXSS();
-        return json(WebAuthn::registerHandle($user, $antixss->xss_clean($request->param())));
+        $params = $antixss->xss_clean($request->param());
+        $challengeId = (string)($params['challenge_id'] ?? '');
+        if ($challengeId === '') {
+            return json(['ret' => 0, 'msg' => '缺少 challenge_id']);
+        }
+
+        return json(WebAuthn::registerHandle($user, $params, $challengeId));
     }
 
     public function webauthnDelete(Request $request, string $id): Json
     {
         $user = app()->userService->getUser();
         $device = (new MFACredential())
-            ->where('id', (int) $id)
+            ->where('id', (int)$id)
             ->where('userid', $user->id)
             ->where('type', 'passkey')
             ->findOrEmpty();
@@ -485,7 +523,7 @@ class UserController extends BaseController
             return json(['ret' => 0, 'msg' => '设备不存在']);
         }
         $device->delete();
-        return json(['ret' => 1, 'msg' => '删除成功'])->header(['HX-Refresh' => 'true']);
+        return json(['ret' => 1, 'msg' => '删除成功']);
     }
 
     public function totpRegisterRequest(Request $request): Json
@@ -504,7 +542,12 @@ class UserController extends BaseController
             ]);
         }
 
-        return json(TOTP::totpRegisterHandle(app()->userService->getUser(), $code));
+        $challengeId = (string)$request->param('challenge_id', '');
+        if ($challengeId === '') {
+            return json(['ret' => 0, 'msg' => '缺少 challenge_id']);
+        }
+
+        return json(TOTP::totpRegisterHandle(app()->userService->getUser(), $code, $challengeId));
     }
 
     public function totpDelete(Request $request): Json
@@ -518,27 +561,33 @@ class UserController extends BaseController
             return json(['ret' => 0, 'msg' => '设备不存在']);
         }
         $device->delete();
-        return json(['ret' => 1, 'msg' => '删除成功'])->header(['HX-Refresh' => 'true']);
+        return json(['ret' => 1, 'msg' => '删除成功']);
     }
 
     public function fidoRegisterRequest(Request $request): Json
     {
         $user = app()->userService->getUser();
-        return json(json_decode(FIDO::fidoRegisterRequest($user)));
+        return json(FIDO::fidoRegisterRequest($user));
     }
 
     public function fidoRegisterHandle(Request $request): Json
     {
         $user = app()->userService->getUser();
         $antixss = new AntiXSS();
-        return json(FIDO::fidoRegisterHandle($user, $antixss->xss_clean($request->param())));
+        $params = $antixss->xss_clean($request->param());
+        $challengeId = (string)($params['challenge_id'] ?? '');
+        if ($challengeId === '') {
+            return json(['ret' => 0, 'msg' => '缺少 challenge_id']);
+        }
+
+        return json(FIDO::fidoRegisterHandle($user, $params, $challengeId));
     }
 
     public function fidoDelete(Request $request, string $id): Json
     {
         $user = app()->userService->getUser();
         $device = (new MFACredential())
-            ->where('id', (int) $id)
+            ->where('id', (int)$id)
             ->where('userid', $user->id)
             ->where('type', 'fido')
             ->findOrEmpty();
@@ -546,15 +595,15 @@ class UserController extends BaseController
             return json(['ret' => 0, 'msg' => '设备不存在']);
         }
         $device->delete();
-        return json(['ret' => 1, 'msg' => '删除成功'])->header(['HX-Refresh' => 'true']);
+        return json(['ret' => 1, 'msg' => '删除成功']);
     }
 
     /**
      * 显示派对最优支付页面
      */
-    public function partyBestPay(Request $request, int $partyId): View
+    public function partyBestPay(Request $request, int $partyId): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 检查用户是否为派对成员
         $isMember = Db::table('party_member')
@@ -563,13 +612,13 @@ class UserController extends BaseController
                 ->count() > 0;
 
         if (! $isMember) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '未找到派对或无权访问'], 404);
         }
 
         // 获取派对信息
         $party = Party::find($partyId);
         if (! $party) {
-            return view('/404');
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
         }
 
         // 检查是否为派对所有者
@@ -587,13 +636,16 @@ class UserController extends BaseController
             $currencySymbol = $currency ? $currency->symbol : '¥';
         }
 
-        return view('/user/party/bestpay', [
-            'party' => $party,
-            'bestPayAll' => $bestPay[1],
-            'bestPayFinal' => $bestPay[0],
-            'userStat' => $userStat,
-            'isOwner' => $isOwner,
-            'currencySymbol' => $currencySymbol
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => $party,
+                'bestPayAll' => $bestPay[1],
+                'bestPayFinal' => $bestPay[0],
+                'userStat' => $userStat,
+                'isOwner' => $isOwner,
+                'currencySymbol' => $currencySymbol,
+            ],
         ]);
     }
 
@@ -602,7 +654,7 @@ class UserController extends BaseController
      */
     public function downloadPartyBestPay(Request $request, int $partyId): Response
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
         // 检查用户是否为派对成员
         $isMember = Db::table('party_member')
                 ->where('party_id', $partyId)
@@ -632,7 +684,7 @@ class UserController extends BaseController
      */
     public function clearPartyBestPay(Request $request, int $partyId): Json
     {
-        $userId = Session::get('userid');
+        $userId = $this->currentUserId();
 
         // 检查用户是否为派对所有者
         $party = Party::find($partyId);
@@ -655,9 +707,7 @@ class UserController extends BaseController
                 ->where('paid', false)
                 ->update(['paid' => true]);
 
-            return json(['ret' => 1, 'msg' => '派对待支付记录已清空'])
-                ->header(['HX-Refresh' => 'true']);
-
+            return json(['ret' => 1, 'msg' => '派对待支付记录已清空']);
         } catch (Exception $e) {
             return json(['ret' => 0, 'msg' => '清空失败：' . $e->getMessage()]);
         }

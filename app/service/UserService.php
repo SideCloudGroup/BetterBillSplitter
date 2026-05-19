@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\service;
@@ -18,6 +19,7 @@ use think\facade\Db;
 use think\facade\Log;
 use think\facade\Session;
 use think\Service;
+use Throwable;
 use Turnstile\Client\Client;
 use Turnstile\Turnstile;
 use voku\helper\AntiXSS;
@@ -26,59 +28,54 @@ class UserService extends Service
 {
     private ?User $user = null;
 
+    private ?int $jwtUserId = null;
+
     public function register()
     {
         $this->app->bind('userService', UserService::class);
     }
 
+    public function setJwtUserId(?int $userId): void
+    {
+        $this->jwtUserId = $userId;
+        $this->user = null;
+    }
+
     public function getUser(): User|null
     {
-        // 检查Session中是否有userid
-        if (! Session::has('userid')) {
+        if ($this->jwtUserId === null) {
             $this->user = null;
+
             return null;
         }
 
-        if (! Session::has('auth') || Session::get('auth') !== true) {
-            Session::clear();
-            Cookie::delete('user');
-            $this->user = null;
-            return null;
-        }
-
-        // 如果已经缓存了用户对象，直接返回
         if ($this->user !== null) {
             return $this->user;
         }
 
-        // 从数据库获取用户信息
-        $_user = (new User())->where('id', Session::get('userid'))->findOrEmpty();
-
-        // 用户不存在，清理Session和Cookie
-        if ($_user->isEmpty()) {
-            Session::clear();
-            Cookie::delete('user');
+        $_user = (new User())->where('id', $this->jwtUserId)->findOrEmpty();
+        if ($_user->isEmpty() || $_user->enable === false) {
             $this->user = null;
-            return null;
-        }
 
-        // 检查用户是否被禁用
-        if ($_user->enable === false) {
-            Session::clear();
-            Cookie::delete('user');
-            $this->user = null;
             return null;
         }
 
         $this->user = $_user;
+
         return $this->user;
     }
 
     public function logout(): void
     {
         $this->user = null;
+        $this->jwtUserId = null;
         Session::clear();
         Cookie::delete('user');
+        try {
+            app('jwtTokenService')->revokeRefreshFromCookie();
+        } catch (Throwable) {
+            // JWT 未配置或容器未就绪时忽略
+        }
     }
 
     public function getUserList(): array
@@ -96,7 +93,7 @@ class UserService extends Service
         $userDetails = (new Item())->where('userid', $id)->select()->toArray();
         $totalPrice = '0';
         foreach ($userDetails as $item) {
-            $totalPrice = bcadd($totalPrice, (string) $item['amount'], 2);
+            $totalPrice = bcadd($totalPrice, (string)$item['amount'], 2);
         }
         return ['ret' => 1, 'data' => $userDetails, 'totalPrice' => $totalPrice];
     }
@@ -151,7 +148,11 @@ class UserService extends Service
             if (! isset($userUnpaid[$item->userid][$item->initiator])) {
                 $userUnpaid[$item->userid][$item->initiator] = '0';
             }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string) $item->amount, 2);
+            $userUnpaid[$item->userid][$item->initiator] = bcadd(
+                $userUnpaid[$item->userid][$item->initiator],
+                (string)$item->amount,
+                2
+            );
         }
         $tmpResult = [];
         // 抵消付款人和收款人
@@ -163,7 +164,11 @@ class UserService extends Service
                 if (isset($tmpResult[$payer_id][$payee_id]) || isset($tmpResult[$payee_id][$payer_id])) {
                     continue;
                 }
-                $diff = bcsub(($userUnpaid[$payer_id][$payee_id] ?? '0'), ($userUnpaid[$payee_id][$payer_id] ?? '0'), 2);
+                $diff = bcsub(
+                    ($userUnpaid[$payer_id][$payee_id] ?? '0'),
+                    ($userUnpaid[$payee_id][$payer_id] ?? '0'),
+                    2
+                );
                 match (true) {
                     bccomp($diff, '0', 2) < 0 => [
                         $tmpResult[$payer_id][$payee_id] = '0',
@@ -203,8 +208,8 @@ class UserService extends Service
                 if (! isset($balance[$creditor])) {
                     $balance[$creditor] = '0';
                 }
-                $balance[$debtor] = bcsub($balance[$debtor], (string) $amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string) $amount, 2);
+                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
+                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
             }
         }
 
@@ -249,181 +254,10 @@ class UserService extends Service
             if (! isset($optimizedDict[$debtor])) {
                 $optimizedDict[$debtor] = [];
             }
-            $optimizedDict[$debtor][$creditor] = (string) $amount;
+            $optimizedDict[$debtor][$creditor] = (string)$amount;
         }
 
         return [$optimizedDict, $stage1];
-    }
-
-    /**
-     * 获取派对的最优支付方案
-     */
-    public function getPartyBestPay(int $partyId): array
-    {
-        // 获取派对成员
-        $members = Db::table('party_member')
-            ->join('user', 'party_member.user_id = user.id')
-            ->where('party_member.party_id', $partyId)
-            ->field('user.id, user.username')
-            ->select()
-            ->toArray();
-
-        if (empty($members)) {
-            return [[], []];
-        }
-
-        $users = array_column($members, 'username', 'id');
-        $userUnpaid = [];
-
-        // 获取派对内所有未支付订单
-        $unpaid = (new Item())->where('paid', 0)
-            ->where('party_id', $partyId)
-            ->field(['userid, amount, initiator'])
-            ->select();
-
-        foreach ($unpaid as $item) {
-            if (! isset($userUnpaid[$item->userid][$item->initiator])) {
-                $userUnpaid[$item->userid][$item->initiator] = '0';
-            }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd($userUnpaid[$item->userid][$item->initiator], (string) $item->amount, 2);
-        }
-
-        $tmpResult = [];
-        // 抵消付款人和收款人
-        foreach ($users as $payer_id => $payer) {
-            foreach ($users as $payee_id => $payee) {
-                if ($payer_id == $payee_id) {
-                    continue;
-                }
-                if (isset($tmpResult[$payer_id][$payee_id]) || isset($tmpResult[$payee_id][$payer_id])) {
-                    continue;
-                }
-                $diff = bcsub(($userUnpaid[$payer_id][$payee_id] ?? '0'), ($userUnpaid[$payee_id][$payer_id] ?? '0'), 2);
-                match (true) {
-                    bccomp($diff, '0', 2) < 0 => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = bcsub('0', $diff, 2),
-                    ],
-                    bccomp($diff, '0', 2) > 0 => [
-                        $tmpResult[$payer_id][$payee_id] = $diff,
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                    default => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                };
-            }
-        }
-
-        // 使用用户名替换用户ID，并去除0值
-        $result = [];
-        foreach ($tmpResult as $payer_id => $payer) {
-            foreach ($payer as $payee_id => $amount) {
-                if ($amount !== 0) {
-                    $result[$users[$payer_id]][$users[$payee_id]] = $amount;
-                }
-            }
-        }
-
-        $stage1 = $result;
-
-        // 进一步优化
-        $debtsDict = $result;
-        $balance = [];
-
-        // 计算每个人的净余额
-        foreach ($debtsDict as $debtor => $creditors) {
-            foreach ($creditors as $creditor => $amount) {
-                if (! isset($balance[$debtor])) {
-                    $balance[$debtor] = '0';
-                }
-                if (! isset($balance[$creditor])) {
-                    $balance[$creditor] = '0';
-                }
-                $balance[$debtor] = bcsub($balance[$debtor], (string) $amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string) $amount, 2);
-            }
-        }
-
-        // 分离出正负余额
-        $creditors = [];
-        $debtors = [];
-        foreach ($balance as $person => $bal) {
-            if (bccomp($bal, '0', 2) > 0) {
-                $creditors[] = [$person, $bal];
-            } elseif (bccomp($bal, '0', 2) < 0) {
-                $debtors[] = [$person, bcsub('0', $bal, 2)];
-            }
-        }
-
-        // 优化支付方案
-        $optimizedDebts = [];
-        $i = 0;
-        $j = 0;
-        while ($i < count($creditors) && $j < count($debtors)) {
-            list($creditor, $credAmount) = $creditors[$i];
-            list($debtor, $debtAmount) = $debtors[$j];
-
-            if (bccomp($credAmount, $debtAmount, 2) > 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $debtAmount];
-                $creditors[$i][1] = bcsub($credAmount, $debtAmount, 2);
-                $j++;
-            } elseif (bccomp($credAmount, $debtAmount, 2) < 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $debtors[$j][1] = bcsub($debtAmount, $credAmount, 2);
-                $i++;
-            } else {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $i++;
-                $j++;
-            }
-        }
-
-        // 转换为字典形式
-        $optimizedDict = [];
-        foreach ($optimizedDebts as $debt) {
-            list($debtor, $creditor, $amount) = $debt;
-            if (! isset($optimizedDict[$debtor])) {
-                $optimizedDict[$debtor] = [];
-            }
-            $optimizedDict[$debtor][$creditor] = (string) $amount;
-        }
-
-        return [$optimizedDict, $stage1];
-    }
-
-    /**
-     * 获取派对用户统计
-     */
-    public function getPartyUserStat(int $partyId): array
-    {
-        // 获取派对成员
-        $members = Db::table('party_member')
-            ->join('user', 'party_member.user_id = user.id')
-            ->where('party_member.party_id', $partyId)
-            ->field('user.id, user.username')
-            ->select()
-            ->toArray();
-
-        if (empty($members)) {
-            return [];
-        }
-
-        $userStat = [];
-        foreach ($members as $member) {
-            $id = $member['id'];
-            $username = $member['username'];
-            $userStat[$username]['in'] = (new Item())->where('initiator', $id)
-                ->where('party_id', $partyId)
-                ->where('paid', 0)
-                ->sum('amount');
-            $userStat[$username]['out'] = (new Item())->where('userid', $id)
-                ->where('party_id', $partyId)
-                ->where('paid', 0)
-                ->sum('amount');
-        }
-        return $userStat;
     }
 
     public function updateUserProfile(int $id, string $username, string $password): array
@@ -478,7 +312,8 @@ class UserService extends Service
                     $hcaptcha = new HCaptcha(getSetting('captcha_siteSecret'));
                     $resp = $hcaptcha->verify(
                         $antixss->xss_clean($request->param('h-captcha-response', '')),
-                        $request->server('REMOTE_ADDR'));
+                        $request->server('REMOTE_ADDR')
+                    );
                     return $resp->isSuccess();
                 }
                 case 'cap':
@@ -512,21 +347,6 @@ class UserService extends Service
     }
 
     /**
-     * @return list<array<string, mixed>>
-     */
-    public function getPartyItemsForExport(int $partyId): array
-    {
-        return Db::table('item')
-            ->join('user payer', 'item.userid = payer.id')
-            ->join('user initiator', 'item.initiator = initiator.id')
-            ->where('item.party_id', $partyId)
-            ->field('item.id, item.description, item.amount, item.userid, item.initiator, item.paid, item.party_id, item.created_at, payer.username as payer_name, initiator.username as initiator_name')
-            ->order('item.id', 'asc')
-            ->select()
-            ->toArray();
-    }
-
-    /**
      * 最优支付下载与归档导出共用数据结构
      *
      * @return array<string, mixed>
@@ -549,5 +369,201 @@ class UserService extends Service
             'items' => $this->getPartyItemsForExport($partyId),
             'export_time' => date('Y-m-d H:i:s'),
         ];
+    }
+
+    /**
+     * 获取派对的最优支付方案
+     */
+    public function getPartyBestPay(int $partyId): array
+    {
+        // 获取派对成员
+        $members = Db::table('party_member')
+            ->join('user', 'party_member.user_id = user.id')
+            ->where('party_member.party_id', $partyId)
+            ->field('user.id, user.username')
+            ->select()
+            ->toArray();
+
+        if (empty($members)) {
+            return [[], []];
+        }
+
+        $users = array_column($members, 'username', 'id');
+        $userUnpaid = [];
+
+        // 获取派对内所有未支付订单
+        $unpaid = (new Item())->where('paid', 0)
+            ->where('party_id', $partyId)
+            ->field(['userid, amount, initiator'])
+            ->select();
+
+        foreach ($unpaid as $item) {
+            if (! isset($userUnpaid[$item->userid][$item->initiator])) {
+                $userUnpaid[$item->userid][$item->initiator] = '0';
+            }
+            $userUnpaid[$item->userid][$item->initiator] = bcadd(
+                $userUnpaid[$item->userid][$item->initiator],
+                (string)$item->amount,
+                2
+            );
+        }
+
+        $tmpResult = [];
+        // 抵消付款人和收款人
+        foreach ($users as $payer_id => $payer) {
+            foreach ($users as $payee_id => $payee) {
+                if ($payer_id == $payee_id) {
+                    continue;
+                }
+                if (isset($tmpResult[$payer_id][$payee_id]) || isset($tmpResult[$payee_id][$payer_id])) {
+                    continue;
+                }
+                $diff = bcsub(
+                    ($userUnpaid[$payer_id][$payee_id] ?? '0'),
+                    ($userUnpaid[$payee_id][$payer_id] ?? '0'),
+                    2
+                );
+                match (true) {
+                    bccomp($diff, '0', 2) < 0 => [
+                        $tmpResult[$payer_id][$payee_id] = '0',
+                        $tmpResult[$payee_id][$payer_id] = bcsub('0', $diff, 2),
+                    ],
+                    bccomp($diff, '0', 2) > 0 => [
+                        $tmpResult[$payer_id][$payee_id] = $diff,
+                        $tmpResult[$payee_id][$payer_id] = '0',
+                    ],
+                    default => [
+                        $tmpResult[$payer_id][$payee_id] = '0',
+                        $tmpResult[$payee_id][$payer_id] = '0',
+                    ],
+                };
+            }
+        }
+
+        // 使用用户名替换用户ID，并去除0值
+        $result = [];
+        foreach ($tmpResult as $payer_id => $payer) {
+            foreach ($payer as $payee_id => $amount) {
+                if ($amount !== 0) {
+                    $result[$users[$payer_id]][$users[$payee_id]] = $amount;
+                }
+            }
+        }
+
+        $stage1 = $result;
+
+        // 进一步优化
+        $debtsDict = $result;
+        $balance = [];
+
+        // 计算每个人的净余额
+        foreach ($debtsDict as $debtor => $creditors) {
+            foreach ($creditors as $creditor => $amount) {
+                if (! isset($balance[$debtor])) {
+                    $balance[$debtor] = '0';
+                }
+                if (! isset($balance[$creditor])) {
+                    $balance[$creditor] = '0';
+                }
+                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
+                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
+            }
+        }
+
+        // 分离出正负余额
+        $creditors = [];
+        $debtors = [];
+        foreach ($balance as $person => $bal) {
+            if (bccomp($bal, '0', 2) > 0) {
+                $creditors[] = [$person, $bal];
+            } elseif (bccomp($bal, '0', 2) < 0) {
+                $debtors[] = [$person, bcsub('0', $bal, 2)];
+            }
+        }
+
+        // 优化支付方案
+        $optimizedDebts = [];
+        $i = 0;
+        $j = 0;
+        while ($i < count($creditors) && $j < count($debtors)) {
+            list($creditor, $credAmount) = $creditors[$i];
+            list($debtor, $debtAmount) = $debtors[$j];
+
+            if (bccomp($credAmount, $debtAmount, 2) > 0) {
+                $optimizedDebts[] = [$debtor, $creditor, $debtAmount];
+                $creditors[$i][1] = bcsub($credAmount, $debtAmount, 2);
+                $j++;
+            } elseif (bccomp($credAmount, $debtAmount, 2) < 0) {
+                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
+                $debtors[$j][1] = bcsub($debtAmount, $credAmount, 2);
+                $i++;
+            } else {
+                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
+                $i++;
+                $j++;
+            }
+        }
+
+        // 转换为字典形式
+        $optimizedDict = [];
+        foreach ($optimizedDebts as $debt) {
+            list($debtor, $creditor, $amount) = $debt;
+            if (! isset($optimizedDict[$debtor])) {
+                $optimizedDict[$debtor] = [];
+            }
+            $optimizedDict[$debtor][$creditor] = (string)$amount;
+        }
+
+        return [$optimizedDict, $stage1];
+    }
+
+    /**
+     * 获取派对用户统计
+     */
+    public function getPartyUserStat(int $partyId): array
+    {
+        // 获取派对成员
+        $members = Db::table('party_member')
+            ->join('user', 'party_member.user_id = user.id')
+            ->where('party_member.party_id', $partyId)
+            ->field('user.id, user.username')
+            ->select()
+            ->toArray();
+
+        if (empty($members)) {
+            return [];
+        }
+
+        $userStat = [];
+        foreach ($members as $member) {
+            $id = $member['id'];
+            $username = $member['username'];
+            $userStat[$username]['in'] = (new Item())->where('initiator', $id)
+                ->where('party_id', $partyId)
+                ->where('paid', 0)
+                ->sum('amount');
+            $userStat[$username]['out'] = (new Item())->where('userid', $id)
+                ->where('party_id', $partyId)
+                ->where('paid', 0)
+                ->sum('amount');
+        }
+        return $userStat;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function getPartyItemsForExport(int $partyId): array
+    {
+        return Db::table('item')
+            ->join('user payer', 'item.userid = payer.id')
+            ->join('user initiator', 'item.initiator = initiator.id')
+            ->where('item.party_id', $partyId)
+            ->field(
+                'item.id, item.description, item.amount, item.userid, item.initiator, item.paid, item.party_id, item.created_at, payer.username as payer_name, initiator.username as initiator_name'
+            )
+            ->order('item.id', 'asc')
+            ->select()
+            ->toArray();
     }
 }

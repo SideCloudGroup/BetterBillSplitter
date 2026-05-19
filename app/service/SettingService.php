@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\service;
@@ -38,7 +39,7 @@ class SettingService extends Service
                     'type' => 'text',
                     'name' => "网站名称",
                     'key' => 'general_name',
-                    'description' => "",
+                    'description' => "显示在登录、注册等页面的站点标题",
                 ],
                 'enableRegister' => [
                     'type' => 'switch',
@@ -57,7 +58,7 @@ class SettingService extends Service
                         'none' => "禁用验证码",
                         'numeric' => '数字验证码',
                         'turnstile' => 'Cloudflare Turnstile',
-                        'hcaptcha' => 'hcaptcha',
+                        'hcaptcha' => 'hCaptcha',
                         'cap' => 'Cap',
                     ],
                 ],
@@ -71,13 +72,13 @@ class SettingService extends Service
                     'type' => 'text',
                     'name' => 'Site Key',
                     'key' => 'captcha_siteKey',
-                    'description' => '',
+                    'description' => "Turnstile、hCaptcha、Cap 的公钥（前端可见）",
                 ],
                 'secretKey' => [
                     'type' => 'text',
                     'name' => 'Secret Key',
                     'key' => 'captcha_siteSecret',
-                    'description' => '',
+                    'description' => "对应服务的私钥，仅服务端校验时使用，请勿泄露",
                 ],
             ],
         ];

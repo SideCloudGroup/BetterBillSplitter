@@ -1,4 +1,5 @@
 <?php
+
 declare (strict_types=1);
 
 namespace app\service\MFA;
@@ -8,7 +9,6 @@ use app\model\User;
 use Exception;
 use think\facade\Cache;
 use think\facade\Request;
-use think\facade\Session;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorSelectionCriteria;
@@ -20,7 +20,10 @@ use Webauthn\PublicKeyCredentialSource;
 
 class FIDO
 {
-    public static function fidoRegisterRequest(User $user): string
+    /**
+     * @return array{challenge_id: string, publicKey: mixed}
+     */
+    public static function fidoRegisterRequest(User $user): array
     {
         $rpEntity = WebAuthn::generateRPEntity();
         $userEntity = WebAuthn::generateUserEntity($user);
@@ -37,11 +40,16 @@ class FIDO
             );
         $serializer = WebAuthn::getSerializer();
         $jsonObject = $serializer->serialize($publicKeyCredentialCreationOptions, 'json');
-        Cache::set('fido_register:' . Session::getId(), $jsonObject, 300);
-        return $jsonObject;
+        $challengeId = bin2hex(random_bytes(16));
+        Cache::set('fido_register:' . $challengeId, $jsonObject, 300);
+
+        return [
+            'challenge_id' => $challengeId,
+            'publicKey' => json_decode($jsonObject, true),
+        ];
     }
 
-    public static function fidoRegisterHandle(User $user, array $data): array
+    public static function fidoRegisterHandle(User $user, array $data, string $challengeId): array
     {
         $serializer = WebAuthn::getSerializer();
 
@@ -58,8 +66,13 @@ class FIDO
             return ['ret' => 0, 'msg' => '密钥类型错误'];
         }
 
+        $cached = Cache::get('fido_register:' . $challengeId);
+        if ($cached === null || $cached === false) {
+            return ['ret' => 0, 'msg' => '注册会话已过期，请重试'];
+        }
+
         $publicKeyCredentialCreationOptions = $serializer->deserialize(
-            Cache::get('fido_register:' . Session::getId()),
+            $cached,
             PublicKeyCredentialCreationOptions::class,
             'json'
         );
@@ -85,10 +98,15 @@ class FIDO
         $mfaCredential->name = $data['name'] === '' ? null : $data['name'];
         $mfaCredential->type = 'fido';
         $mfaCredential->save();
+        Cache::delete('fido_register:' . $challengeId);
+
         return ['ret' => 1, 'msg' => '注册成功'];
     }
 
-    public static function fidoAssertRequest(User $user): string
+    /**
+     * @return array{challenge_id: string, publicKey: mixed}
+     */
+    public static function fidoAssertRequest(User $user, string $assertionCacheKey): array
     {
         $serializer = WebAuthn::getSerializer();
         $userCredentials = (new MFACredential())
@@ -114,12 +132,21 @@ class FIDO
             timeout: WebAuthn::$timeout,
         );
         $jsonObject = $serializer->serialize($publicKeyCredentialRequestOptions, 'json');
-        Cache::set('fido_assertion:' . Session::getId(), $jsonObject, 300);
-        return $jsonObject;
+        $challengeId = bin2hex(random_bytes(16));
+        Cache::set('fido_assertion:' . $assertionCacheKey . ':' . $challengeId, $jsonObject, 300);
+
+        return [
+            'challenge_id' => $challengeId,
+            'publicKey' => json_decode($jsonObject, true),
+        ];
     }
 
-    public static function fidoAssertHandle(User $user, array $data): array
-    {
+    public static function fidoAssertHandle(
+        User $user,
+        array $data,
+        string $assertionCacheKey,
+        string $challengeId
+    ): array {
         $serializer = WebAuthn::getSerializer();
         $publicKeyCredential = $serializer->deserialize(json_encode($data), PublicKeyCredential::class, 'json');
         if (! $publicKeyCredential->response instanceof AuthenticatorAssertionResponse) {
@@ -133,14 +160,22 @@ class FIDO
         if ($publicKeyCredentialSource->isEmpty()) {
             return ['ret' => 0, 'msg' => '设备未注册'];
         }
+        $cached = Cache::get('fido_assertion:' . $assertionCacheKey . ':' . $challengeId);
+        if ($cached === null || $cached === false) {
+            return ['ret' => 0, 'msg' => '会话已过期，请重试'];
+        }
         try {
             $publicKeyCredentialRequestOptions = $serializer->deserialize(
-                Cache::get('fido_assertion:' . Session::getId()),
+                $cached,
                 PublicKeyCredentialRequestOptions::class,
                 'json'
             );
             $authenticatorAssertionResponseValidator = WebAuthn::getAuthenticatorAssertionResponseValidator();
-            $publicKeyCredentialSource_body = $serializer->deserialize($publicKeyCredentialSource->body, PublicKeyCredentialSource::class, 'json');
+            $publicKeyCredentialSource_body = $serializer->deserialize(
+                $publicKeyCredentialSource->body,
+                PublicKeyCredentialSource::class,
+                'json'
+            );
             $result = $authenticatorAssertionResponseValidator->check(
                 $publicKeyCredentialSource_body,
                 $publicKeyCredential->response,
@@ -154,6 +189,8 @@ class FIDO
         $publicKeyCredentialSource->body = $serializer->serialize($result, 'json');
         $publicKeyCredentialSource->used_at = date('Y-m-d H:i:s');
         $publicKeyCredentialSource->save();
+        Cache::delete('fido_assertion:' . $assertionCacheKey . ':' . $challengeId);
+
         return ['ret' => 1, 'msg' => '验证成功', 'userid' => $user->id];
     }
 }
