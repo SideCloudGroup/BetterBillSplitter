@@ -23,3 +23,7 @@ build_arm.sh
 .travis.yml
 /runtime
 /.agents
+/tests
+/phpunit.xml
+/.phpunit.cache
+/composer.phar

@@ -5,6 +5,7 @@ declare (strict_types=1);
 namespace app\service;
 
 use app\model\Item;
+use app\service\PaymentSettlementService;
 use app\model\Party;
 use app\model\User;
 use app\Request;
@@ -26,6 +27,11 @@ use voku\helper\AntiXSS;
 
 class UserService extends Service
 {
+    private function settlement(): PaymentSettlementService
+    {
+        return new PaymentSettlementService();
+    }
+
     private ?User $user = null;
 
     private ?int $jwtUserId = null;
@@ -141,123 +147,20 @@ class UserService extends Service
     {
         $users = Db::table('user')->field('id, username')->select()->toArray();
         $users = array_column($users, 'username', 'id');
-        $userUnpaid = [];
-        // 获取所有未支付订单
         $unpaid = (new Item())->where('paid', 0)->field(['userid, amount, initiator'])->select();
+        $items = [];
         foreach ($unpaid as $item) {
-            if (! isset($userUnpaid[$item->userid][$item->initiator])) {
-                $userUnpaid[$item->userid][$item->initiator] = '0';
-            }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd(
-                $userUnpaid[$item->userid][$item->initiator],
-                (string)$item->amount,
-                2
-            );
-        }
-        $tmpResult = [];
-        // 抵消付款人和收款人
-        foreach ($users as $payer_id => $payer) {
-            foreach ($users as $payee_id => $payee) {
-                if ($payer_id == $payee_id) {
-                    continue;
-                }
-                if (isset($tmpResult[$payer_id][$payee_id]) || isset($tmpResult[$payee_id][$payer_id])) {
-                    continue;
-                }
-                $diff = bcsub(
-                    ($userUnpaid[$payer_id][$payee_id] ?? '0'),
-                    ($userUnpaid[$payee_id][$payer_id] ?? '0'),
-                    2
-                );
-                match (true) {
-                    bccomp($diff, '0', 2) < 0 => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = bcsub('0', $diff, 2),
-                    ],
-                    bccomp($diff, '0', 2) > 0 => [
-                        $tmpResult[$payer_id][$payee_id] = $diff,
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                    default => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                };
-            }
-        }
-        // 使用用户名替换用户ID，并去除0值
-        $result = [];
-        foreach ($tmpResult as $payer_id => $payer) {
-            foreach ($payer as $payee_id => $amount) {
-                if ($amount !== 0) {
-                    $result[$users[$payer_id]][$users[$payee_id]] = $amount;
-                }
-            }
-        }
-        $stage1 = $result;
-        // 进一步优化
-        $debtsDict = $result;
-        $balance = [];
-
-        // 计算每个人的净余额
-        foreach ($debtsDict as $debtor => $creditors) {
-            foreach ($creditors as $creditor => $amount) {
-                if (! isset($balance[$debtor])) {
-                    $balance[$debtor] = '0';
-                }
-                if (! isset($balance[$creditor])) {
-                    $balance[$creditor] = '0';
-                }
-                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
-            }
+            $items[] = [
+                'userid' => $item->userid,
+                'initiator' => $item->initiator,
+                'amount' => $item->amount,
+            ];
         }
 
-        // 分离出正负余额
-        $creditors = [];
-        $debtors = [];
-        foreach ($balance as $person => $bal) {
-            if (bccomp($bal, '0', 2) > 0) {
-                $creditors[] = [$person, $bal];
-            } elseif (bccomp($bal, '0', 2) < 0) {
-                $debtors[] = [$person, bcsub('0', $bal, 2)];
-            }
-        }
-
-        // 优化支付方案
-        $optimizedDebts = [];
-        $i = 0;
-        $j = 0;
-        while ($i < count($creditors) && $j < count($debtors)) {
-            list($creditor, $credAmount) = $creditors[$i];
-            list($debtor, $debtAmount) = $debtors[$j];
-
-            if (bccomp($credAmount, $debtAmount, 2) > 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $debtAmount];
-                $creditors[$i][1] = bcsub($credAmount, $debtAmount, 2);
-                $j++;
-            } elseif (bccomp($credAmount, $debtAmount, 2) < 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $debtors[$j][1] = bcsub($debtAmount, $credAmount, 2);
-                $i++;
-            } else {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $i++;
-                $j++;
-            }
-        }
-
-        // 转换为字典形式
-        $optimizedDict = [];
-        foreach ($optimizedDebts as $debt) {
-            list($debtor, $creditor, $amount) = $debt;
-            if (! isset($optimizedDict[$debtor])) {
-                $optimizedDict[$debtor] = [];
-            }
-            $optimizedDict[$debtor][$creditor] = (string)$amount;
-        }
-
-        return [$optimizedDict, $stage1];
+        return $this->settlement()->compute(
+            $this->settlement()->aggregateUnpaid($items),
+            $users
+        );
     }
 
     public function updateUserProfile(int $id, string $username, string $password): array
@@ -376,7 +279,6 @@ class UserService extends Service
      */
     public function getPartyBestPay(int $partyId): array
     {
-        // 获取派对成员
         $members = Db::table('party_member')
             ->join('user', 'party_member.user_id = user.id')
             ->where('party_member.party_id', $partyId)
@@ -389,132 +291,23 @@ class UserService extends Service
         }
 
         $users = array_column($members, 'username', 'id');
-        $userUnpaid = [];
-
-        // 获取派对内所有未支付订单
         $unpaid = (new Item())->where('paid', 0)
             ->where('party_id', $partyId)
             ->field(['userid, amount, initiator'])
             ->select();
-
+        $items = [];
         foreach ($unpaid as $item) {
-            if (! isset($userUnpaid[$item->userid][$item->initiator])) {
-                $userUnpaid[$item->userid][$item->initiator] = '0';
-            }
-            $userUnpaid[$item->userid][$item->initiator] = bcadd(
-                $userUnpaid[$item->userid][$item->initiator],
-                (string)$item->amount,
-                2
-            );
+            $items[] = [
+                'userid' => $item->userid,
+                'initiator' => $item->initiator,
+                'amount' => $item->amount,
+            ];
         }
 
-        $tmpResult = [];
-        // 抵消付款人和收款人
-        foreach ($users as $payer_id => $payer) {
-            foreach ($users as $payee_id => $payee) {
-                if ($payer_id == $payee_id) {
-                    continue;
-                }
-                if (isset($tmpResult[$payer_id][$payee_id]) || isset($tmpResult[$payee_id][$payer_id])) {
-                    continue;
-                }
-                $diff = bcsub(
-                    ($userUnpaid[$payer_id][$payee_id] ?? '0'),
-                    ($userUnpaid[$payee_id][$payer_id] ?? '0'),
-                    2
-                );
-                match (true) {
-                    bccomp($diff, '0', 2) < 0 => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = bcsub('0', $diff, 2),
-                    ],
-                    bccomp($diff, '0', 2) > 0 => [
-                        $tmpResult[$payer_id][$payee_id] = $diff,
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                    default => [
-                        $tmpResult[$payer_id][$payee_id] = '0',
-                        $tmpResult[$payee_id][$payer_id] = '0',
-                    ],
-                };
-            }
-        }
-
-        // 使用用户名替换用户ID，并去除0值
-        $result = [];
-        foreach ($tmpResult as $payer_id => $payer) {
-            foreach ($payer as $payee_id => $amount) {
-                if ($amount !== 0) {
-                    $result[$users[$payer_id]][$users[$payee_id]] = $amount;
-                }
-            }
-        }
-
-        $stage1 = $result;
-
-        // 进一步优化
-        $debtsDict = $result;
-        $balance = [];
-
-        // 计算每个人的净余额
-        foreach ($debtsDict as $debtor => $creditors) {
-            foreach ($creditors as $creditor => $amount) {
-                if (! isset($balance[$debtor])) {
-                    $balance[$debtor] = '0';
-                }
-                if (! isset($balance[$creditor])) {
-                    $balance[$creditor] = '0';
-                }
-                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
-            }
-        }
-
-        // 分离出正负余额
-        $creditors = [];
-        $debtors = [];
-        foreach ($balance as $person => $bal) {
-            if (bccomp($bal, '0', 2) > 0) {
-                $creditors[] = [$person, $bal];
-            } elseif (bccomp($bal, '0', 2) < 0) {
-                $debtors[] = [$person, bcsub('0', $bal, 2)];
-            }
-        }
-
-        // 优化支付方案
-        $optimizedDebts = [];
-        $i = 0;
-        $j = 0;
-        while ($i < count($creditors) && $j < count($debtors)) {
-            list($creditor, $credAmount) = $creditors[$i];
-            list($debtor, $debtAmount) = $debtors[$j];
-
-            if (bccomp($credAmount, $debtAmount, 2) > 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $debtAmount];
-                $creditors[$i][1] = bcsub($credAmount, $debtAmount, 2);
-                $j++;
-            } elseif (bccomp($credAmount, $debtAmount, 2) < 0) {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $debtors[$j][1] = bcsub($debtAmount, $credAmount, 2);
-                $i++;
-            } else {
-                $optimizedDebts[] = [$debtor, $creditor, $credAmount];
-                $i++;
-                $j++;
-            }
-        }
-
-        // 转换为字典形式
-        $optimizedDict = [];
-        foreach ($optimizedDebts as $debt) {
-            list($debtor, $creditor, $amount) = $debt;
-            if (! isset($optimizedDict[$debtor])) {
-                $optimizedDict[$debtor] = [];
-            }
-            $optimizedDict[$debtor][$creditor] = (string)$amount;
-        }
-
-        return [$optimizedDict, $stage1];
+        return $this->settlement()->compute(
+            $this->settlement()->aggregateUnpaid($items),
+            $users
+        );
     }
 
     /**
