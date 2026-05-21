@@ -26,7 +26,7 @@ class Money
     {
         $total = '0';
         foreach ($amounts as $amount) {
-            $total = bcadd($total, (string) $amount, $scale);
+            $total = bcadd($total, (string)$amount, $scale);
         }
 
         return $total;

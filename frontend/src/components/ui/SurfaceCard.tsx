@@ -8,7 +8,7 @@ type SurfaceCardProps = CardProps & {
 /** 统一内容卡片：白底、轻阴影、圆角 */
 export function SurfaceCard({children, className, ...rest}: SurfaceCardProps) {
   return (
-    <Card bordered={false} className={`bbs-surface-card ${className ?? ''}`.trim()} {...rest}>
+    <Card variant="borderless" className={`bbs-surface-card ${className ?? ''}`.trim()} {...rest}>
       {children}
     </Card>
   );

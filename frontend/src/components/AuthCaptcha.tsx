@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Alert, Button, Image, Input, Typography} from 'antd';
 
@@ -45,6 +46,10 @@ function setExtra(next: Record<string, string>) {
 }
 
 type Props = { slotKey: string };
+
+function CaptchaWrap({children}: { children: ReactNode }) {
+  return <div className="bbs-auth-captcha">{children}</div>;
+}
 
 export function AuthCaptcha({slotKey}: Props) {
   const [boot, setBoot] = useState<CaptchaBootstrap | null>(null);
@@ -123,14 +128,20 @@ export function AuthCaptcha({slotKey}: Props) {
   if (!boot) return null;
   const driver = boot.driver || 'none';
   if (driver === 'none' || driver === '') return null;
-  if (err) return <Alert type="error" message={err}/>;
+  if (err) {
+    return (
+      <CaptchaWrap>
+        <Alert type="error" message={err}/>
+      </CaptchaWrap>
+    );
+  }
 
   if (driver === 'numeric') {
     const src = `${numericUrl}?t=${capTick}`;
     return (
-      <div>
+      <CaptchaWrap>
         <Typography.Text type="secondary">验证码</Typography.Text>
-        <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}>
+        <div className="bbs-auth-captcha__image-row">
           <Image
             src={src}
             alt="验证码"
@@ -146,26 +157,34 @@ export function AuthCaptcha({slotKey}: Props) {
           </Button>
         </div>
         <Input
-          style={{marginTop: 8}}
+          className="bbs-auth-captcha__input"
           placeholder="请输入图中字符"
           autoComplete="off"
           onChange={(e) => setExtra({captcha: e.target.value.trim()})}
         />
-      </div>
+      </CaptchaWrap>
     );
   }
 
   if (driver === 'turnstile' && boot.site_key) {
-    return <div ref={turnHost} className="mb-2"/>;
+    return (
+      <CaptchaWrap>
+        <div ref={turnHost}/>
+      </CaptchaWrap>
+    );
   }
 
   if (driver === 'hcaptcha' && boot.site_key) {
-    return <div ref={hcapHost} className="mb-2"/>;
+    return (
+      <CaptchaWrap>
+        <div ref={hcapHost}/>
+      </CaptchaWrap>
+    );
   }
 
   if (driver === 'cap') {
     return (
-      <div>
+      <CaptchaWrap>
         <Typography.Text strong>人机验证</Typography.Text>
         <Typography.Paragraph type="secondary" style={{marginBottom: 8}}>
           站点使用自定义验证服务，请完成验证后把 token 填入下方。
@@ -176,14 +195,18 @@ export function AuthCaptcha({slotKey}: Props) {
           </Typography.Link>
         ) : null}
         <Input
-          style={{marginTop: 8}}
+          className="bbs-auth-captcha__input"
           placeholder="cap-token"
           autoComplete="off"
           onChange={(e) => setExtra({'cap-token': e.target.value.trim()})}
         />
-      </div>
+      </CaptchaWrap>
     );
   }
 
-  return <Alert type="warning" message={`未知验证码驱动：${driver}`}/>;
+  return (
+    <CaptchaWrap>
+      <Alert type="warning" message={`未知验证码驱动：${driver}`}/>
+    </CaptchaWrap>
+  );
 }

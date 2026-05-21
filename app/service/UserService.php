@@ -5,7 +5,6 @@ declare (strict_types=1);
 namespace app\service;
 
 use app\model\Item;
-use app\service\PaymentSettlementService;
 use app\model\Party;
 use app\model\User;
 use app\Request;
@@ -27,13 +26,7 @@ use voku\helper\AntiXSS;
 
 class UserService extends Service
 {
-    private function settlement(): PaymentSettlementService
-    {
-        return new PaymentSettlementService();
-    }
-
     private ?User $user = null;
-
     private ?int $jwtUserId = null;
 
     public function register()
@@ -161,6 +154,11 @@ class UserService extends Service
             $this->settlement()->aggregateUnpaid($items),
             $users
         );
+    }
+
+    private function settlement(): PaymentSettlementService
+    {
+        return new PaymentSettlementService();
     }
 
     public function updateUserProfile(int $id, string $username, string $password): array

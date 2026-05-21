@@ -367,11 +367,26 @@ class AdminController extends BaseController
 
     public function updateSetting(Request $request): Json
     {
-        $data = $request->param();
+        $content = $request->getContent();
+        $data = is_string($content) && $content !== ''
+            ? json_decode($content, true)
+            : null;
+        if (! is_array($data)) {
+            $data = $request->post();
+        }
+        if (! is_array($data) || $data === []) {
+            return json(['ret' => 0, 'msg' => '参数为空']);
+        }
+
+        $allowed = array_flip(app()->settingService->getAllSettingKeys());
         foreach ($data as $key => $value) {
+            if (! is_string($key) || ! isset($allowed[$key])) {
+                continue;
+            }
             app()->settingService->updateSetting($key, $value);
         }
-        return json(['ret' => 1, 'msg' => "设置已更新"]);
+
+        return json(['ret' => 1, 'msg' => '设置已更新']);
     }
 
     /**

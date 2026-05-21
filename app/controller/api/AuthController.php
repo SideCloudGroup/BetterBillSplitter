@@ -64,11 +64,8 @@ class AuthController extends BaseController
             ]);
         }
         $user = (new User())->where('username', $data['username'])->findOrEmpty();
-        if ($user->isEmpty()) {
-            return json(['ret' => 0, 'msg' => '用户不存在']);
-        }
-        if (! password_verify($data['password'], $user->password)) {
-            return json(['ret' => 0, 'msg' => '密码错误']);
+        if ($user->isEmpty() || ! password_verify($data['password'], $user->password)) {
+            return json(['ret' => 0, 'msg' => '用户名或密码错误']);
         }
         if ($user->enable === false) {
             return json(['ret' => 0, 'msg' => '用户已被禁用，请联系管理员']);

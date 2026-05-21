@@ -31,6 +31,21 @@ class SettingService extends Service
         }
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getAllSettingKeys(): array
+    {
+        $keys = [];
+        foreach ($this->getAllSettings() as $items) {
+            foreach ($items as $item) {
+                $keys[] = $item['key'];
+            }
+        }
+
+        return $keys;
+    }
+
     public function getAllSettings(): array
     {
         return [
@@ -84,14 +99,15 @@ class SettingService extends Service
         ];
     }
 
-    public function updateSetting(string $key, string $value): void
+    public function updateSetting(string $key, mixed $value): void
     {
-        $setting = (new Setting())->where('key', $key)->findOrEmpty();
-        match ($value) {
-            'on' => $value = '1',
-            'off' => $value = '0',
-            default => $value,
+        $value = match (true) {
+            is_bool($value) => $value ? '1' : '0',
+            $value === 'on' => '1',
+            $value === 'off' => '0',
+            default => (string)$value,
         };
+        $setting = (new Setting())->where('key', $key)->findOrEmpty();
         if ($setting->isEmpty()) {
             $setting = new Setting();
             $setting->key = $key;

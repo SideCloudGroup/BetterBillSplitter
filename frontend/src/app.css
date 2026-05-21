@@ -66,6 +66,14 @@ body {
     box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 1px 3px 0 rgba(15, 23, 42, 0.08) !important;
 }
 
+.bbs-settings-form .bbs-setting-field {
+    margin-bottom: 20px;
+}
+
+.bbs-settings-form .bbs-setting-field .ant-select {
+    display: block;
+}
+
 .bbs-stat-card {
     border-radius: 12px !important;
     transition: box-shadow 0.2s ease, transform 0.2s ease;
@@ -88,6 +96,23 @@ body {
 
 .bbs-auth-card {
     border-radius: 16px !important;
+}
+
+/* 登录/注册：验证码区域与下方按钮留出间距（与 Form.Item 一致） */
+.bbs-auth-captcha {
+    margin-bottom: 24px;
+}
+
+.bbs-auth-captcha__image-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.bbs-auth-captcha__input {
+    margin-top: 8px;
 }
 
 .bbs-brand-mark {

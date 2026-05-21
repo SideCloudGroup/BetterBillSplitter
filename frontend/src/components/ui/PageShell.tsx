@@ -99,7 +99,7 @@ export function PageShell({
   }
 
   const body = card ? (
-    <Card bordered={false} className="bbs-surface-card">
+    <Card variant="borderless" className="bbs-surface-card">
       {children}
     </Card>
   ) : (

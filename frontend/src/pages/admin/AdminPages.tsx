@@ -1,6 +1,7 @@
 import {Fragment, useEffect, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
+  App,
   Button,
   Divider,
   Form,
@@ -10,6 +11,7 @@ import {
   Modal,
   Select,
   Space,
+  Spin,
   Switch,
   Table,
   Typography,
@@ -479,6 +481,10 @@ function formValuesFromSettingData(
     const raw = data[field.key];
     if (field.type === 'switch') {
       out[field.key] = raw === true || raw === 1 || raw === '1' || raw === 'on';
+    } else if (field.type === 'select') {
+      const s = raw == null ? '' : String(raw);
+      const valid = field.options && s !== '' && s in field.options;
+      out[field.key] = valid ? s : (field.options ? Object.keys(field.options)[0] : s);
     } else {
       out[field.key] = raw == null ? '' : String(raw);
     }
@@ -502,86 +508,207 @@ function payloadFromFormValues(
   return out;
 }
 
-function SettingControl({field}: { field: SettingFieldDef }) {
-  if (field.type === 'switch') {
-    return <Switch checkedChildren="开" unCheckedChildren="关"/>;
-  }
-  if (field.type === 'select' && field.options) {
-    return (
-      <Select
-        options={Object.entries(field.options).map(([value, label]) => ({value, label}))}
-        placeholder="请选择"
-      />
-    );
-  }
-  return <Input/>;
+function SettingFieldRow({
+  field,
+  value,
+  onChange,
+}: {
+  field: SettingFieldDef;
+  value: string | boolean | undefined;
+  onChange: (key: string, next: string | boolean) => void;
+}) {
+  const desc = field.description?.trim();
+  return (
+    <div className="bbs-setting-field">
+      <Typography.Text strong>{field.name}</Typography.Text>
+      {desc ? (
+        <Typography.Paragraph type="secondary" style={{margin: '4px 0 8px', fontSize: 13}}>
+          {desc}
+        </Typography.Paragraph>
+      ) : null}
+      {field.type === 'switch' ? (
+        <Switch
+          checked={value === true || value === '1'}
+          checkedChildren="开"
+          unCheckedChildren="关"
+          onChange={(checked) => onChange(field.key, checked)}
+        />
+      ) : field.type === 'select' && field.options ? (
+        <Select
+          style={{width: '100%'}}
+          value={value == null || value === '' ? undefined : String(value)}
+          options={Object.entries(field.options).map(([v, label]) => ({value: v, label}))}
+          placeholder="请选择"
+          onChange={(v) => onChange(field.key, v)}
+        />
+      ) : (
+        <Input
+          value={value == null ? '' : String(value)}
+          onChange={(e) => onChange(field.key, e.target.value)}
+        />
+      )}
+    </div>
+  );
+}
+
+function parseAdminSettingsResponse(raw: {
+  ret?: number | string;
+  msg?: string;
+  data?: {
+    settings?: SettingsSchema;
+    settingData?: Record<string, string | number | boolean | null>;
+    categories?: string[];
+  };
+}): { schema: SettingsSchema; categories: string[]; values: Record<string, string | boolean> } | null {
+  if (Number(raw.ret) !== 1 || !raw.data) return null;
+
+  const settings = raw.data.settings;
+  if (!settings || Array.isArray(settings) || typeof settings !== 'object') return null;
+
+  const settingData = raw.data.settingData ?? {};
+  const schemaKeys = Object.keys(settings);
+  const fromApi = Array.isArray(raw.data.categories) ? raw.data.categories : [];
+  const categories = (fromApi.length > 0 ? fromApi : schemaKeys).filter(
+    (cat) => settings[cat] != null && !Array.isArray(settings[cat]),
+  );
+
+  return {
+    schema: settings,
+    categories: categories.length > 0 ? categories : schemaKeys,
+    values: formValuesFromSettingData(settings, settingData),
+  };
 }
 
 export function AdminSettingsPage() {
+  const {message} = App.useApp();
   const [schema, setSchema] = useState<SettingsSchema>({});
   const [categories, setCategories] = useState<string[]>([]);
-  const [form] = Form.useForm();
+  const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [fieldCount, setFieldCount] = useState(0);
 
   useEffect(() => {
     void (async () => {
-      const data = await apiJson<{
-        ret: number;
-        data?: {
-          settings?: SettingsSchema;
-          settingData?: Record<string, string | number | boolean | null>;
-          categories?: string[];
-        };
-      }>('/admin/setting');
-      if (data.ret === 1 && data.data?.settings) {
-        const s = data.data.settings;
-        setSchema(s);
-        setCategories(data.data.categories ?? Object.keys(s));
-        form.setFieldsValue(formValuesFromSettingData(s, data.data.settingData || {}));
-      }
-      setLoading(false);
-    })();
-  }, [form]);
+      try {
+        const data = await apiJson<{
+          ret: number | string;
+          msg?: string;
+          data?: {
+            settings?: SettingsSchema;
+            settingData?: Record<string, string | number | boolean | null>;
+            categories?: string[];
+          };
+        }>('/admin/setting');
 
-  const onFinish = async (vals: Record<string, string | boolean>) => {
-    const res = await apiPostJson('/admin/setting', payloadFromFormValues(schema, vals));
-    const out = (await res.json()) as { ret: number; msg?: string };
-    if (out.ret === 1) message.success(out.msg || '已保存');
-    else message.error(out.msg || '失败');
+        const parsed = parseAdminSettingsResponse(data);
+        if (!parsed) {
+          const hint = data.data ? `data 键: ${Object.keys(data.data).join(', ')}` : '无 data 字段';
+          setLoadError(data.msg || `解析设置失败（${hint}）`);
+          return;
+        }
+
+        const count = settingFieldsFromSchema(parsed.schema).length;
+        if (count === 0) {
+          setLoadError('配置 schema 为空');
+          return;
+        }
+
+        setSchema(parsed.schema);
+        setCategories(parsed.categories);
+        setValues(parsed.values);
+        setFieldCount(count);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : '加载设置失败');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const patchValue = (key: string, next: string | boolean) => {
+    setValues((prev) => ({...prev, [key]: next}));
   };
 
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await apiPostJson('/admin/setting', payloadFromFormValues(schema, values));
+      const out = (await res.json()) as { ret: number | string; msg?: string; error?: string };
+      if (!res.ok) {
+        message.error(out.msg || out.error || `请求失败 (${res.status})`);
+        return;
+      }
+      if (Number(out.ret) === 1) {
+        message.success(out.msg || '已保存');
+        setValues(formValuesFromSettingData(schema, payloadFromFormValues(schema, values)));
+      } else {
+        message.error(out.msg || '保存失败');
+      }
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const allFields = settingFieldsFromSchema(schema);
+
+  const fieldSections = categories
+    .map((cat) => ({
+      cat,
+      fields: Object.values(schema[cat] ?? {}).filter(
+        (f): f is SettingFieldDef =>
+          f != null && typeof f === 'object' && typeof (f as SettingFieldDef).key === 'string',
+      ),
+    }))
+    .filter((s) => s.fields.length > 0);
+
+  const sections =
+    fieldSections.length > 0
+      ? fieldSections
+      : [{cat: '_all', fields: allFields}];
+
   return (
-    <PageShell title="系统设置" back={{to: '/admin'}} loading={loading} layout="narrow" maxWidth={640}>
+    <PageShell
+      title="系统设置"
+      subtitle={fieldCount > 0 ? `共 ${fieldCount} 项配置` : undefined}
+      back={{to: '/admin'}}
+      error={loadError}
+      layout="narrow"
+      maxWidth={640}
+    >
       <SurfaceCard>
-        <Form form={form} layout="vertical" onFinish={onFinish}>
-          {categories.map((cat, idx) => {
-            const group = schema[cat];
-            if (!group) return null;
-            const fields = Object.values(group);
-            return (
-              <Fragment key={cat}>
-                <Typography.Title level={5} style={{marginTop: idx === 0 ? 0 : 8, marginBottom: 16}}>
-                  {SETTING_CATEGORY_TITLES[cat] ?? cat}
-                </Typography.Title>
-                {fields.map((field) => (
-                  <Form.Item
-                    key={field.key}
-                    name={field.key}
-                    label={field.name}
-                    extra={field.description?.trim() || undefined}
-                    valuePropName={field.type === 'switch' ? 'checked' : 'value'}
-                  >
-                    <SettingControl field={field}/>
-                  </Form.Item>
-                ))}
-                {idx < categories.length - 1 ? <Divider style={{margin: '8px 0 24px'}}/> : null}
-              </Fragment>
-            );
-          })}
-          <Button type="primary" htmlType="submit" style={{marginTop: 8}}>
-            保存
-          </Button>
-        </Form>
+        <Spin spinning={loading}>
+          {allFields.length > 0 ? (
+            <div className="bbs-settings-form">
+              {sections.map((section, idx) => (
+                <Fragment key={section.cat}>
+                  {section.cat !== '_all' ? (
+                    <Typography.Title level={5} style={{marginTop: idx === 0 ? 0 : 8, marginBottom: 16}}>
+                      {SETTING_CATEGORY_TITLES[section.cat] ?? section.cat}
+                    </Typography.Title>
+                  ) : null}
+                  {section.fields.map((field) => (
+                    <SettingFieldRow
+                      key={field.key}
+                      field={field}
+                      value={values[field.key]}
+                      onChange={patchValue}
+                    />
+                  ))}
+                  {idx < sections.length - 1 ? <Divider style={{margin: '8px 0 24px'}}/> : null}
+                </Fragment>
+              ))}
+              <Button type="primary" loading={saving} style={{marginTop: 8}} onClick={() => void save()}>
+                保存
+              </Button>
+            </div>
+          ) : !loading && !loadError ? (
+            <Typography.Text type="secondary">未获取到配置项</Typography.Text>
+          ) : null}
+        </Spin>
       </SurfaceCard>
     </PageShell>
   );

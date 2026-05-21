@@ -19,14 +19,14 @@ class PaymentSettlementService
     {
         $userUnpaid = [];
         foreach ($items as $item) {
-            $userid = (int) $item['userid'];
-            $initiator = (int) $item['initiator'];
+            $userid = (int)$item['userid'];
+            $initiator = (int)$item['initiator'];
             if (! isset($userUnpaid[$userid][$initiator])) {
                 $userUnpaid[$userid][$initiator] = '0';
             }
             $userUnpaid[$userid][$initiator] = bcadd(
                 $userUnpaid[$userid][$initiator],
-                (string) $item['amount'],
+                (string)$item['amount'],
                 2
             );
         }
@@ -82,7 +82,7 @@ class PaymentSettlementService
         $result = [];
         foreach ($tmpResult as $payer_id => $payer) {
             foreach ($payer as $payee_id => $amount) {
-                if ($amount !== 0 && bccomp((string) $amount, '0', 2) !== 0) {
+                if ($amount !== 0 && bccomp((string)$amount, '0', 2) !== 0) {
                     $result[$users[$payer_id]][$users[$payee_id]] = $amount;
                 }
             }
@@ -112,8 +112,8 @@ class PaymentSettlementService
                 if (! isset($balance[$creditor])) {
                     $balance[$creditor] = '0';
                 }
-                $balance[$debtor] = bcsub($balance[$debtor], (string) $amount, 2);
-                $balance[$creditor] = bcadd($balance[$creditor], (string) $amount, 2);
+                $balance[$debtor] = bcsub($balance[$debtor], (string)$amount, 2);
+                $balance[$creditor] = bcadd($balance[$creditor], (string)$amount, 2);
             }
         }
 
@@ -155,7 +155,7 @@ class PaymentSettlementService
             if (! isset($optimizedDict[$debtor])) {
                 $optimizedDict[$debtor] = [];
             }
-            $optimizedDict[$debtor][$creditor] = (string) $amount;
+            $optimizedDict[$debtor][$creditor] = (string)$amount;
         }
 
         return $optimizedDict;
