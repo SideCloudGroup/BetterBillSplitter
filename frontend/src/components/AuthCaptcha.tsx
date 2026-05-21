@@ -1,14 +1,10 @@
 import type {ReactNode} from 'react';
-import {useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import {Alert, Button, Image, Input, Typography} from 'antd';
+import type {CapWidgetElement} from '@/cap-widget';
+import {fetchPublicBootstrap, type PublicBootstrap} from '@/lib/publicBootstrap';
 
-export type CaptchaBootstrap = {
-  driver?: string;
-  site_key?: string;
-  captcha_image_url?: string;
-  cap_custom_url?: string;
-  general_name?: string;
-};
+export type CaptchaBootstrap = PublicBootstrap;
 
 let captchaExtra: Record<string, string> = {};
 
@@ -16,15 +12,7 @@ export function getCaptchaExtraParams(): Record<string, string> {
   return {...captchaExtra};
 }
 
-export async function fetchCaptchaBootstrap(): Promise<CaptchaBootstrap> {
-  try {
-    const r = await fetch('/api/auth/bootstrap', {credentials: 'same-origin'});
-    const j = (await r.json()) as { ret?: number; data?: CaptchaBootstrap };
-    return j.data || {driver: 'none'};
-  } catch {
-    return {driver: 'none'};
-  }
-}
+export {fetchPublicBootstrap as fetchCaptchaBootstrap};
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -35,6 +23,7 @@ function loadScript(src: string): Promise<void> {
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
+    s.defer = true;
     s.onload = () => resolve();
     s.onerror = () => reject(new Error(`脚本加载失败: ${src}`));
     document.head.appendChild(s);
@@ -45,25 +34,50 @@ function setExtra(next: Record<string, string>) {
   captchaExtra = next;
 }
 
+const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+const HCAPTCHA_SCRIPT = 'https://js.hcaptcha.com/1/api.js';
+const CAP_SCRIPT = 'https://cdn.jsdelivr.net/npm/@cap.js/widget';
+
 type Props = { slotKey: string };
 
 function CaptchaWrap({children}: { children: ReactNode }) {
   return <div className="bbs-auth-captcha">{children}</div>;
 }
 
+function configError(driver: string, detail: string) {
+  return (
+    <CaptchaWrap>
+      <Alert
+        type="warning"
+        message={`${driver} 验证码未正确配置`}
+        description={detail}
+        showIcon
+      />
+    </CaptchaWrap>
+  );
+}
+
 export function AuthCaptcha({slotKey}: Props) {
-  const [boot, setBoot] = useState<CaptchaBootstrap | null>(null);
+  const [boot, setBoot] = useState<PublicBootstrap | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const numericUrl = boot?.captcha_image_url || '/captcha';
-  const [capTick, setCapTick] = useState(0);
+  const [numericTick, setNumericTick] = useState(0);
   const turnHost = useRef<HTMLDivElement>(null);
   const hcapHost = useRef<HTMLDivElement>(null);
+  const capHost = useRef<HTMLDivElement>(null);
+  const capWidgetRef = useRef<CapWidgetElement | null>(null);
+  const turnWidgetId = useRef(`bbs-turnstile-${slotKey}`);
+  const hcapWidgetId = useRef(`bbs-hcaptcha-${slotKey}`);
+
+  const refreshNumeric = useCallback(() => {
+    setNumericTick(Date.now());
+    setExtra({});
+  }, []);
 
   useEffect(() => {
     captchaExtra = {};
     void (async () => {
       try {
-        const b = await fetchCaptchaBootstrap();
+        const b = await fetchPublicBootstrap();
         setBoot(b);
       } catch {
         setBoot({driver: 'none'});
@@ -83,51 +97,165 @@ export function AuthCaptcha({slotKey}: Props) {
       return;
     }
 
-    if (driver === 'turnstile' && boot.site_key && turnHost.current) {
-      void (async () => {
-        try {
-          await loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js');
-          const w = window as unknown as {
-            turnstile?: { render: (el: HTMLElement, opts: Record<string, unknown>) => void };
+    if (driver !== 'turnstile' || !boot.site_key) return;
+    const host = turnHost.current;
+    if (!host) return;
+
+    let cancelled = false;
+    const cbName = `__bbsTurnstile_${slotKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    void (async () => {
+      try {
+        await loadScript(TURNSTILE_SCRIPT);
+        if (cancelled || !turnHost.current) return;
+
+        const w = window as unknown as {
+          turnstile?: {
+            render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+            reset: (id: string) => void;
           };
-          if (!w.turnstile || !turnHost.current) throw new Error('Turnstile 未就绪');
-          turnHost.current.innerHTML = '';
-          w.turnstile.render(turnHost.current, {
+          [key: string]: unknown;
+        };
+
+        (w as Record<string, unknown>)[cbName] = (token: string) => {
+          setExtra({'cf-turnstile-response': token});
+        };
+        (w as Record<string, unknown>)[`${cbName}_expired`] = () => setExtra({});
+
+        turnHost.current.innerHTML = '';
+        const el = document.createElement('div');
+        el.id = turnWidgetId.current;
+        el.className = 'cf-turnstile';
+        el.setAttribute('data-sitekey', boot.site_key!);
+        el.setAttribute('data-theme', 'light');
+        el.setAttribute('data-callback', cbName);
+        el.setAttribute('data-expired-callback', `${cbName}_expired`);
+        turnHost.current.appendChild(el);
+
+        if (w.turnstile?.render) {
+          w.turnstile.render(el, {
             sitekey: boot.site_key,
+            theme: 'light',
             callback: (token: string) => setExtra({'cf-turnstile-response': token}),
             'expired-callback': () => setExtra({}),
           });
-        } catch (e) {
-          setErr(e instanceof Error ? e.message : String(e));
         }
-      })();
-      return;
-    }
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
 
-    if (driver === 'hcaptcha' && boot.site_key && hcapHost.current) {
-      void (async () => {
-        try {
-          await loadScript('https://js.hcaptcha.com/1/api.js');
-          const w = window as unknown as {
-            hcaptcha?: { render: (el: HTMLElement, opts: Record<string, unknown>) => string };
+    return () => {
+      cancelled = true;
+      delete (window as Record<string, unknown>)[cbName];
+      delete (window as Record<string, unknown>)[`${cbName}_expired`];
+      if (turnHost.current) turnHost.current.innerHTML = '';
+    };
+  }, [boot, slotKey]);
+
+  useEffect(() => {
+    if (!boot) return;
+    const driver = boot.driver || 'none';
+    if (driver !== 'hcaptcha' || !boot.site_key) return;
+    const host = hcapHost.current;
+    if (!host) return;
+
+    let cancelled = false;
+    const cbName = `__bbsHcaptcha_${slotKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    void (async () => {
+      try {
+        await loadScript(HCAPTCHA_SCRIPT);
+        if (cancelled || !hcapHost.current) return;
+
+        const w = window as unknown as {
+          hcaptcha?: {
+            render: (el: HTMLElement, opts: Record<string, unknown>) => string;
+            reset: (id: string) => void;
           };
-          if (!w.hcaptcha || !hcapHost.current) throw new Error('hCaptcha 未就绪');
-          hcapHost.current.innerHTML = '';
-          w.hcaptcha.render(hcapHost.current, {
+          [key: string]: unknown;
+        };
+
+        (w as Record<string, unknown>)[cbName] = (token: string) => {
+          setExtra({'h-captcha-response': token});
+        };
+        (w as Record<string, unknown>)[`${cbName}_expired`] = () => setExtra({});
+
+        hcapHost.current.innerHTML = '';
+        const el = document.createElement('div');
+        el.id = hcapWidgetId.current;
+        el.className = 'h-captcha';
+        el.setAttribute('data-sitekey', boot.site_key!);
+        el.setAttribute('data-callback', cbName);
+        el.setAttribute('data-expired-callback', `${cbName}_expired`);
+        hcapHost.current.appendChild(el);
+
+        if (w.hcaptcha?.render) {
+          w.hcaptcha.render(el, {
             sitekey: boot.site_key,
             callback: (token: string) => setExtra({'h-captcha-response': token}),
             'expired-callback': () => setExtra({}),
           });
-        } catch (e) {
-          setErr(e instanceof Error ? e.message : String(e));
         }
-      })();
-    }
-  }, [boot, capTick]);
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      delete (window as Record<string, unknown>)[cbName];
+      delete (window as Record<string, unknown>)[`${cbName}_expired`];
+      if (hcapHost.current) hcapHost.current.innerHTML = '';
+    };
+  }, [boot, slotKey]);
+
+  useEffect(() => {
+    if (!boot) return;
+    const driver = boot.driver || 'none';
+    if (driver !== 'cap' || !boot.site_key || !boot.cap_custom_url) return;
+    const host = capHost.current;
+    if (!host) return;
+
+    let cancelled = false;
+
+    const onSolve = (e: Event) => {
+      const token = (e as CustomEvent<{ token: string }>).detail?.token;
+      if (token) setExtra({'cap-token': token});
+    };
+
+    void (async () => {
+      try {
+        await loadScript(CAP_SCRIPT);
+        if (cancelled || !capHost.current) return;
+
+        capHost.current.innerHTML = '';
+        const widget = document.createElement('cap-widget') as CapWidgetElement;
+        widget.id = 'cap';
+        widget.setAttribute(
+          'data-cap-api-endpoint',
+          `${boot.cap_custom_url!.replace(/\/$/, '')}/${boot.site_key}/`,
+        );
+        widget.addEventListener('solve', onSolve);
+        capHost.current.appendChild(widget);
+        capWidgetRef.current = widget;
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      capWidgetRef.current?.removeEventListener('solve', onSolve);
+      capWidgetRef.current = null;
+      if (capHost.current) capHost.current.innerHTML = '';
+    };
+  }, [boot, slotKey]);
 
   if (!boot) return null;
   const driver = boot.driver || 'none';
   if (driver === 'none' || driver === '') return null;
+
   if (err) {
     return (
       <CaptchaWrap>
@@ -137,27 +265,26 @@ export function AuthCaptcha({slotKey}: Props) {
   }
 
   if (driver === 'numeric') {
-    const src = `${numericUrl}?t=${capTick}`;
+    const numericUrl = boot.captcha_image_url || '/captcha';
+    const src = `${numericUrl}?t=${numericTick}`;
     return (
       <CaptchaWrap>
         <Typography.Text type="secondary">验证码</Typography.Text>
         <div className="bbs-auth-captcha__image-row">
           <Image
             src={src}
-            alt="验证码"
+            alt="captcha"
             preview={false}
             style={{cursor: 'pointer', border: '1px solid #d9d9d9', borderRadius: 6}}
-            onClick={() => {
-              setCapTick(Date.now());
-              setExtra({});
-            }}
+            onClick={refreshNumeric}
           />
-          <Button size="small" onClick={() => setCapTick(Date.now())}>
+          <Button size="small" onClick={refreshNumeric}>
             换一张
           </Button>
         </div>
         <Input
           className="bbs-auth-captcha__input"
+          name="captcha"
           placeholder="请输入图中字符"
           autoComplete="off"
           onChange={(e) => setExtra({captcha: e.target.value.trim()})}
@@ -166,7 +293,10 @@ export function AuthCaptcha({slotKey}: Props) {
     );
   }
 
-  if (driver === 'turnstile' && boot.site_key) {
+  if (driver === 'turnstile') {
+    if (!boot.site_key) {
+      return configError('Turnstile', '请在管理后台设置中填写 Site Key。');
+    }
     return (
       <CaptchaWrap>
         <div ref={turnHost}/>
@@ -174,7 +304,10 @@ export function AuthCaptcha({slotKey}: Props) {
     );
   }
 
-  if (driver === 'hcaptcha' && boot.site_key) {
+  if (driver === 'hcaptcha') {
+    if (!boot.site_key) {
+      return configError('hCaptcha', '请在管理后台设置中填写 Site Key。');
+    }
     return (
       <CaptchaWrap>
         <div ref={hcapHost}/>
@@ -183,23 +316,12 @@ export function AuthCaptcha({slotKey}: Props) {
   }
 
   if (driver === 'cap') {
+    if (!boot.site_key || !boot.cap_custom_url) {
+      return configError('Cap', '请在管理后台设置中填写自定义 URL 与 Site Key。');
+    }
     return (
       <CaptchaWrap>
-        <Typography.Text strong>人机验证</Typography.Text>
-        <Typography.Paragraph type="secondary" style={{marginBottom: 8}}>
-          站点使用自定义验证服务，请完成验证后把 token 填入下方。
-        </Typography.Paragraph>
-        {boot.cap_custom_url ? (
-          <Typography.Link href={boot.cap_custom_url} target="_blank" rel="noopener noreferrer">
-            验证入口
-          </Typography.Link>
-        ) : null}
-        <Input
-          className="bbs-auth-captcha__input"
-          placeholder="cap-token"
-          autoComplete="off"
-          onChange={(e) => setExtra({'cap-token': e.target.value.trim()})}
-        />
+        <div ref={capHost}/>
       </CaptchaWrap>
     );
   }

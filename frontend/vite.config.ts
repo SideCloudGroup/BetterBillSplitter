@@ -1,10 +1,10 @@
-import { defineConfig } from 'vite';
+import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+import {resolve} from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { '@': resolve(__dirname, 'src') } },
+  resolve: {alias: {'@': resolve(__dirname, 'src')}},
   root: resolve(__dirname),
   base: '/',
   build: {
@@ -14,8 +14,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-      '/captcha': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      '/api': {target: 'http://127.0.0.1:8000', changeOrigin: true},
+      '/captcha': {target: 'http://127.0.0.1:8000', changeOrigin: true},
     },
   },
 });

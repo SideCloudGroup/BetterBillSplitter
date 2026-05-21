@@ -15,6 +15,7 @@ import {
 } from '@ant-design/icons';
 import {apiFetch, setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
+import {useSite} from '@/context/SiteContext';
 import {brandPrimary} from '@/theme/appTheme';
 
 const {Header, Sider, Content} = Layout;
@@ -48,7 +49,8 @@ function selectedFromPath(pathname: string): string {
   return '/';
 }
 
-function BrandMark({collapsed, compact}: { collapsed?: boolean; compact?: boolean }) {
+function BrandMark({collapsed, compact, siteName}: { collapsed?: boolean; compact?: boolean; siteName: string }) {
+  const short = siteName.length <= 4 ? siteName : siteName.slice(0, 2);
   return (
     <div
       className="bbs-brand-mark"
@@ -60,7 +62,7 @@ function BrandMark({collapsed, compact}: { collapsed?: boolean; compact?: boolea
       }}
     >
       <AccountBookFilled/>
-      {!collapsed ? <span>{compact ? 'BBS' : 'BetterBillSplitter'}</span> : null}
+      {!collapsed ? <span>{compact ? short : siteName}</span> : null}
     </div>
   );
 }
@@ -72,6 +74,7 @@ export function MainLayout() {
   const loc = useLocation();
   const nav = useNavigate();
   const {user, setUser} = useAuth();
+  const {siteName} = useSite();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -114,7 +117,7 @@ export function MainLayout() {
           width={232}
           style={{background: siderBg}}
         >
-          <BrandMark collapsed={collapsed}/>
+          <BrandMark collapsed={collapsed} siteName={siteName}/>
           <Menu {...menuProps} />
         </Sider>
       ) : null}
@@ -140,7 +143,7 @@ export function MainLayout() {
                   aria-expanded={mobileNavOpen}
                   onClick={() => setMobileNavOpen((o) => !o)}
                 />
-                <BrandMark compact/>
+                <BrandMark compact siteName={siteName}/>
               </Space>
             ) : (
               <span/>

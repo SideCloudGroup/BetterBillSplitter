@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN';
 import {HashRouter, Link, Navigate, Outlet, Route, Routes} from 'react-router-dom';
 
 import {AuthProvider, useAuth} from '@/context/AuthContext';
+import {SiteProvider} from '@/context/SiteContext';
 
 import {PrivateRoute} from '@/components/PrivateRoute';
 
@@ -133,85 +134,89 @@ export function App() {
 
         <HashRouter>
 
-          <AuthProvider>
+          <SiteProvider>
 
-            <Routes>
+            <AuthProvider>
 
-              <Route path="/login" element={<LoginPage/>}/>
+              <Routes>
 
-              <Route path="/auth/login" element={<Navigate to="/login" replace/>}/>
+                <Route path="/login" element={<LoginPage/>}/>
 
-              <Route path="/register" element={<RegisterPage/>}/>
+                <Route path="/auth/login" element={<Navigate to="/login" replace/>}/>
 
-              <Route path="/mfa" element={<MfaPage/>}/>
+                <Route path="/register" element={<RegisterPage/>}/>
 
-              <Route
+                <Route path="/mfa" element={<MfaPage/>}/>
 
-                element={
+                <Route
 
-                  <PrivateRoute>
+                  element={
 
-                    <MainLayout/>
+                    <PrivateRoute>
 
-                  </PrivateRoute>
+                      <MainLayout/>
 
-                }
+                    </PrivateRoute>
 
-              >
+                  }
 
-                <Route index element={<HomePage/>}/>
+                >
 
-                <Route path="payment" element={<PaymentListPage/>}/>
+                  <Route index element={<HomePage/>}/>
 
-                <Route path="payment/party/:partyId" element={<PaymentPartyPage/>}/>
+                  <Route path="payment" element={<PaymentListPage/>}/>
 
-                <Route path="items" element={<ItemListPage/>}/>
+                  <Route path="payment/party/:partyId" element={<PaymentPartyPage/>}/>
 
-                <Route path="items/party/:partyId" element={<ItemPartyPage/>}/>
+                  <Route path="items" element={<ItemListPage/>}/>
 
-                <Route path="items/add" element={<ItemAddPage/>}/>
+                  <Route path="items/party/:partyId" element={<ItemPartyPage/>}/>
 
-                <Route path="parties" element={<PartyListPage/>}/>
+                  <Route path="items/add" element={<ItemAddPage/>}/>
 
-                <Route path="parties/join" element={<PartyJoinPage/>}/>
+                  <Route path="parties" element={<PartyListPage/>}/>
 
-                <Route path="parties/create" element={<PartyCreatePage/>}/>
+                  <Route path="parties/join" element={<PartyJoinPage/>}/>
 
-                <Route path="parties/:id/members" element={<PartyMembersPage/>}/>
+                  <Route path="parties/create" element={<PartyCreatePage/>}/>
 
-                <Route path="parties/:id/edit" element={<PartyEditPage/>}/>
+                  <Route path="parties/:id/members" element={<PartyMembersPage/>}/>
 
-                <Route path="parties/:id/bestpay" element={<PartyBestPayPage/>}/>
+                  <Route path="parties/:id/edit" element={<PartyEditPage/>}/>
 
-                <Route path="parties/:id" element={<PartyShowPage/>}/>
+                  <Route path="parties/:id/bestpay" element={<PartyBestPayPage/>}/>
 
-                <Route path="profile" element={<ProfilePage/>}/>
+                  <Route path="parties/:id" element={<PartyShowPage/>}/>
 
-                <Route path="admin" element={<AdminGate/>}>
+                  <Route path="profile" element={<ProfilePage/>}/>
 
-                  <Route index element={<AdminHomePage/>}/>
+                  <Route path="admin" element={<AdminGate/>}>
 
-                  <Route path="users" element={<AdminUsersPage/>}/>
+                    <Route index element={<AdminHomePage/>}/>
 
-                  <Route path="parties" element={<AdminPartiesPage/>}/>
+                    <Route path="users" element={<AdminUsersPage/>}/>
 
-                  <Route path="parties/:id/members" element={<AdminPartyMembersPage/>}/>
+                    <Route path="parties" element={<AdminPartiesPage/>}/>
 
-                  <Route path="currencies" element={<AdminCurrenciesPage/>}/>
+                    <Route path="parties/:id/members" element={<AdminPartyMembersPage/>}/>
 
-                  <Route path="currencies/edit/:code" element={<AdminCurrencyEditPage/>}/>
+                    <Route path="currencies" element={<AdminCurrenciesPage/>}/>
 
-                  <Route path="settings" element={<AdminSettingsPage/>}/>
+                    <Route path="currencies/edit/:code" element={<AdminCurrencyEditPage/>}/>
+
+                    <Route path="settings" element={<AdminSettingsPage/>}/>
+
+                  </Route>
+
+                  <Route path="*" element={<NotFoundPage/>}/>
 
                 </Route>
 
-                <Route path="*" element={<NotFoundPage/>}/>
+              </Routes>
 
-              </Route>
+            </AuthProvider>
 
-            </Routes>
-
-          </AuthProvider>
+          </SiteProvider>
 
         </HashRouter>
 

@@ -5,6 +5,7 @@ import {KeyOutlined} from '@ant-design/icons';
 import {type PublicKeyCredentialRequestOptionsJSON, startAuthentication} from '@simplewebauthn/browser';
 import {applyAuthPayload, setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
+import {useSite} from '@/context/SiteContext';
 import {AuthCaptcha, getCaptchaExtraParams} from '@/components/AuthCaptcha';
 import {AuthLayout} from '@/components/ui';
 
@@ -18,6 +19,7 @@ export function LoginPage() {
     nav(from && from !== '/login' ? from : '/', {replace: true});
   };
   const {setUser} = useAuth();
+  const {siteName} = useSite();
   const [err, setErr] = useState<string | null>(null);
   const [capKey, setCapKey] = useState(0);
 
@@ -101,7 +103,7 @@ export function LoginPage() {
   };
 
   return (
-    <AuthLayout title="BetterBillSplitter" subtitle="登录你的账户" variant="login">
+    <AuthLayout title={siteName} subtitle="登录你的账户" variant="login">
       {err ? <Alert type="error" message={err} showIcon closable onClose={() => setErr(null)}/> : null}
       <Form layout="vertical" onFinish={onFinish} requiredMark="optional" size="large">
         <Form.Item name="username" label="用户名" rules={[{required: true}]}>

@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {Link} from 'react-router-dom';
-import {Button, Col, Flex, Row, Space, Typography} from 'antd';
+import {Button, Col, Collapse, Flex, Row, Space, Typography} from 'antd';
 import {AccountBookOutlined, LoginOutlined, PlusOutlined, TeamOutlined, UnorderedListOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
 import {PartyJoinModal} from '@/components/PartyJoinModal';
@@ -76,6 +76,7 @@ export function HomePage() {
       loading={loading}
       error={err}
       maxWidth={1040}
+      centered
       extra={
         <Space wrap>
           <Button icon={<LoginOutlined/>} onClick={() => setJoinOpen(true)}>
@@ -115,12 +116,19 @@ export function HomePage() {
         </Col>
       </Row>
 
-      <SurfaceCard
+      <Collapse
+        className="bbs-surface-card"
         style={{marginTop: 24}}
-        title={<SectionTitle icon={<UnorderedListOutlined/>}>最近动态</SectionTitle>}
-      >
-        <ActivityTimeline items={activity}/>
-      </SurfaceCard>
+        bordered={false}
+        defaultActiveKey={['activity']}
+        items={[
+          {
+            key: 'activity',
+            label: <SectionTitle icon={<UnorderedListOutlined/>}>最近动态</SectionTitle>,
+            children: <ActivityTimeline items={activity}/>,
+          },
+        ]}
+      />
 
       <SurfaceCard
         style={{marginTop: 24}}

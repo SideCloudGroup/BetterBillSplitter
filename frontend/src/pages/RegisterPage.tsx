@@ -3,12 +3,14 @@ import {Link, useNavigate} from 'react-router-dom';
 import {Alert, Button, Form, Input, message, Typography} from 'antd';
 import {setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
+import {useSite} from '@/context/SiteContext';
 import {AuthCaptcha, getCaptchaExtraParams} from '@/components/AuthCaptcha';
 import {AuthLayout} from '@/components/ui';
 
 export function RegisterPage() {
   const nav = useNavigate();
   const {setUser} = useAuth();
+  const {siteName} = useSite();
   const [err, setErr] = useState<string | null>(null);
   const [capKey, setCapKey] = useState(0);
 
@@ -41,7 +43,7 @@ export function RegisterPage() {
   };
 
   return (
-    <AuthLayout title="创建账号" subtitle="加入 BetterBillSplitter" variant="register">
+    <AuthLayout title="创建账号" subtitle={`加入 ${siteName}`} variant="register">
       {err ? <Alert type="error" message={err} showIcon closable onClose={() => setErr(null)}/> : null}
       <Form layout="vertical" onFinish={onFinish} size="large">
         <Form.Item name="username" label="用户名" rules={[{required: true}]}>
