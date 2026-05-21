@@ -260,7 +260,7 @@ export function ProfilePage() {
             在验证器中添加
           </Typography.Link>
         ) : null}
-        <Typography.Paragraph type="secondary" copyable>
+        <Typography.Paragraph type="secondary" copyable={{ text: totpModal?.token ?? '' }}>
           密钥：{totpModal?.token || ''}
         </Typography.Paragraph>
         <Form layout="vertical" onFinish={finishTotp}>

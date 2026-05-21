@@ -1,7 +1,6 @@
 *.log
 .env
 composer.phar
-composer.lock
 .DS_Store
 Thumbs.db
 /.idea
@@ -14,9 +13,7 @@ docker-compose.yml
 Dockerfile
 LICENSE
 README.md
-nginx.conf
-build.bat
-build_arm.sh
+
 .gitignore
 .example.env
 .git
@@ -26,4 +23,5 @@ build_arm.sh
 /tests
 /phpunit.xml
 /.phpunit.cache
-/composer.phar
+frontend/node_modules
+public/spa

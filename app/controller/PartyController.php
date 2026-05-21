@@ -14,8 +14,8 @@ use Exception;
 use stdClass;
 use think\facade\Db;
 use think\Request;
+use think\Response;
 use think\response\Json;
-use think\response\Response;
 
 class PartyController extends BaseController
 {

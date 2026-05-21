@@ -6,7 +6,7 @@
   <img src="public/static/imgs/taffynya_agadvgmaauwawfq.png" width="64" style="margin-left: 20px;">
 </div>
 
-一个现代化的团体开支管理程序，基于 ThinkPHP8 框架构建，支持**派对创建与管理**、多人协作记账，并智能计算最优支付方案。
+一个现代化的团体开支管理程序：后端基于 **ThinkPHP 8**，前端为 **React + Vite** 单页应用，支持**派对创建与管理**、多人协作记账，并智能计算最优支付方案。
 
 ## ✨ 核心功能特性
 
@@ -74,9 +74,18 @@
 
 ### 📋 环境要求
 
-请确保服务器已安装 Docker 和 Docker Compose。
+请确保服务器已安装 [Docker](https://docs.docker.com/get-docker/) 与 [Docker Compose](https://docs.docker.com/compose/install/)（Docker Desktop 通常已包含 Compose）。
 
 ### 🐳 使用 Docker 部署
+
+镜像内已包含 **Caddy**（Web 服务与静态资源）、**PHP-FPM**（API）及构建好的前端页面，无需单独部署 Nginx 或手动构建前端。
+
+Compose 默认启动两个服务：
+
+| 服务 | 说明 |
+|------|------|
+| `web` | 应用入口，监听容器内 `80`，映射到宿主机 `WEB_PORT` |
+| `mariadb` | 数据库，数据持久化在 `./data/mariadb/` |
 
 #### 1. 下载配置文件
 
@@ -84,37 +93,54 @@
 mkdir expense && cd expense
 wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/.example.env -O .env
 wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/docker-compose.yml
-wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/nginx.conf
 ```
 
 #### 2. 配置环境变量
 
-根据项目需求修改 `.env` 文件中的变量，例如数据库连接信息、端口配置等。
+编辑 `.env`，至少修改以下项（生产环境务必使用强密码与随机密钥）：
 
-### 3. 启动 Docker Compose
+| 变量 | 说明 |
+|------|------|
+| `WEB_PORT` | 本机访问端口，默认 `17985` |
+| `MARIADB_*` | 数据库账号、密码、库名 |
+| `JWT_SECRET` | JWT 签名密钥，可用 `openssl rand -hex 32` 生成 |
+| `JWT_REFRESH_COOKIE_SECURE` | 仅 HTTPS 部署时设为 `true`；本地 HTTP 保持 `false` |
+| `APP_TIMEZONE` | 应用默认时区 |
 
-在 `.env` 文件配置完成后，执行以下命令启动 Docker Compose：
+#### 3. 启动服务
 
 ```bash
-# 启动所有服务
+# 拉取镜像并启动
 docker compose up -d
 
-# 查看服务状态
+# 查看状态
 docker compose ps
 
-# 查看日志
-docker compose logs -f
+# 查看日志（应用）
+docker compose logs -f web
 ```
 
-#### 4. 配置反向代理
+启动后访问：`http://127.0.0.1:<WEB_PORT>/`（将 `<WEB_PORT>` 替换为 `.env` 中的值）。
 
-您可以使用 Nginx 或 Cloudflare Tunnel 等工具配置反向代理，将服务暴露到公网。
+#### 4. 配置反向代理（可选）
+
+容器内 **Caddy** 已负责站点与 API 路由。若需 HTTPS 或绑定域名，可在宿主机再套一层反向代理（如 Caddy、Nginx、Traefik）或 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)，将流量转发到 `127.0.0.1:<WEB_PORT>`。
 
 #### 5. 创建管理员账户
 
 ```bash
-docker compose exec php-fpm php think createAdmin <username> <password>
+docker compose exec web php think createAdmin <username> <password>
 ```
+
+### 🔧 从源码构建镜像（可选）
+
+```bash
+git clone https://github.com/SideCloudGroup/BetterBillSplitter.git
+cd BetterBillSplitter
+docker build -t betterbillsplitter:latest .
+```
+
+构建过程会自动完成前端 `npm run build` 与 `composer install`。本地调试 Compose 时，可将 `docker-compose.yml` 中 `web.image` 改为上述标签，或增加 `build: .` 配置。
 
 ## 🎯 使用指南
 
