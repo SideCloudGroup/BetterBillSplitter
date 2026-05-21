@@ -77,7 +77,7 @@ export function PartyCreatePage() {
 
   return (
     <PageShell title="创建派对" back={{to: '/parties'}} layout="narrow">
-      <SurfaceCard>
+      <SurfaceCard className="bbs-form-page">
         {err ? <Alert type="error" message={err} style={{marginBottom: 16}} showIcon/> : null}
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item name="name" label="名称" rules={[{required: true}]}>

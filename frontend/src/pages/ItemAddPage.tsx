@@ -142,7 +142,7 @@ export function ItemAddPage() {
 
   return (
     <PageShell title="添加收款" back={{to: '/items'}} loading={loading} layout="narrow" maxWidth={640}>
-      <SurfaceCard>
+      <SurfaceCard className="bbs-form-page">
         <Form
           form={form}
           layout="vertical"

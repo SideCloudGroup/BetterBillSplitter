@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {Table} from 'antd';
+import {Avatar, Typography} from 'antd';
+import {TeamOutlined} from '@ant-design/icons';
 import {apiFetch} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {EmptyState, PageShell, SectionTitle, SurfaceCard} from '@/components/ui';
 
 type MemberRow = { id?: number; username?: string };
 
@@ -28,19 +29,36 @@ export function PartyMembersPage() {
   }, [partyId]);
 
   return (
-    <PageShell title="派对成员" back={{to: `/parties/${partyId}`}} loading={loading} error={err} layout="narrow"
-               maxWidth={560}>
-      <SurfaceCard>
-        <Table
-          rowKey={(r) => String(r.id ?? r.username)}
-          pagination={false}
-          dataSource={users}
-          locale={{emptyText: '暂无成员'}}
-          columns={[
-            {title: 'ID', dataIndex: 'id', render: (t) => t ?? '—'},
-            {title: '用户名', dataIndex: 'username', render: (t) => t ?? '—'},
-          ]}
-        />
+    <PageShell
+      title="派对成员"
+      subtitle={`共 ${users.length} 人`}
+      back={{to: `/parties/${partyId}`}}
+      loading={loading}
+      error={err}
+      maxWidth={560}
+    >
+      <SurfaceCard title={<SectionTitle icon={<TeamOutlined/>}>成员列表</SectionTitle>}>
+        {users.length === 0 ? (
+          <EmptyState description="暂无成员"/>
+        ) : (
+          <ul className="bbs-party-member-list">
+            {users.map((m) => (
+              <li key={m.id ?? m.username} className="bbs-party-member">
+                <Avatar size={40} style={{background: '#e0f2fe', color: '#0369a1', flexShrink: 0}}>
+                  {(m.username || '?').charAt(0).toUpperCase()}
+                </Avatar>
+                <div className="bbs-party-member__info">
+                  <Typography.Text strong>{m.username || '—'}</Typography.Text>
+                  {m.id != null ? (
+                    <Typography.Text type="secondary" style={{fontSize: 12, display: 'block'}}>
+                      ID {m.id}
+                    </Typography.Text>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </SurfaceCard>
     </PageShell>
   );

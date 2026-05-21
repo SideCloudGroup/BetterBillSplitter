@@ -12,11 +12,11 @@ use think\facade\Request;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorSelectionCriteria;
+use Webauthn\CredentialRecord;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 use Webauthn\PublicKeyCredentialDescriptor;
 use Webauthn\PublicKeyCredentialRequestOptions;
-use Webauthn\PublicKeyCredentialSource;
 
 class FIDO
 {
@@ -116,10 +116,10 @@ class FIDO
             ->select();
         $credentials = [];
         foreach ($userCredentials as $credential) {
-            $credentials[] = $serializer->deserialize($credential->body, PublicKeyCredentialSource::class, 'json');
+            $credentials[] = $serializer->deserialize($credential->body, CredentialRecord::class, 'json');
         }
         $allowedCredentials = array_map(
-            static function (PublicKeyCredentialSource $credential): PublicKeyCredentialDescriptor {
+            static function (CredentialRecord $credential): PublicKeyCredentialDescriptor {
                 return $credential->getPublicKeyCredentialDescriptor();
             },
             $credentials
@@ -171,13 +171,13 @@ class FIDO
                 'json'
             );
             $authenticatorAssertionResponseValidator = WebAuthn::getAuthenticatorAssertionResponseValidator();
-            $publicKeyCredentialSource_body = $serializer->deserialize(
+            $credentialRecord = $serializer->deserialize(
                 $publicKeyCredentialSource->body,
-                PublicKeyCredentialSource::class,
+                CredentialRecord::class,
                 'json'
             );
             $result = $authenticatorAssertionResponseValidator->check(
-                $publicKeyCredentialSource_body,
+                $credentialRecord,
                 $publicKeyCredential->response,
                 $publicKeyCredentialRequestOptions,
                 Request::host(),

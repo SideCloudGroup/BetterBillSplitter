@@ -22,7 +22,7 @@ export function PartyJoinPage() {
 
   return (
     <PageShell title="加入派对" back={{to: '/parties'}} layout="narrow" maxWidth={520}>
-      <SurfaceCard>
+      <SurfaceCard className="bbs-form-page">
         {err ? <Alert type="error" message={err} showIcon style={{marginBottom: 16}}/> : null}
         <Form layout="vertical" onFinish={onFinish}>
           <Form.Item name="invite_code" label="邀请码" rules={[{required: true}]}>

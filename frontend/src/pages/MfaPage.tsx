@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {Link, useLocation, useNavigate, useSearchParams} from 'react-router-dom';
 import {Alert, Button, Card, Form, Input, Space, Typography} from 'antd';
 import {SafetyCertificateOutlined} from '@ant-design/icons';
-import {startAuthentication} from '@simplewebauthn/browser';
+import {type PublicKeyCredentialRequestOptionsJSON, startAuthentication} from '@simplewebauthn/browser';
 import {apiPostJson, applyAuthPayload, setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
 import {AuthLayout} from '@/components/ui';
@@ -62,7 +62,12 @@ export function MfaPage() {
   const onFido = async () => {
     setErr(null);
     try {
-      const ch = await fetch(`/api/auth/mfa/fido/challenge?mfa_ticket=${encodeURIComponent(ticket)}`, {
+      const challengeBody = new URLSearchParams();
+      challengeBody.set('mfa_ticket', ticket);
+      const ch = await fetch('/api/auth/mfa/fido/challenge', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: challengeBody.toString(),
         credentials: 'include',
       });
       const d = (await ch.json()) as { ret?: number; msg?: string; challenge_id?: string; publicKey?: unknown };
@@ -70,7 +75,9 @@ export function MfaPage() {
         setErr(d.msg || '无法开始 FIDO 验证');
         return;
       }
-      const assertion = await startAuthentication({optionsJSON: JSON.stringify(d.publicKey)});
+      const assertion = await startAuthentication({
+        optionsJSON: d.publicKey as PublicKeyCredentialRequestOptionsJSON,
+      });
       const res = await apiPostJson('/auth/mfa/fido/verify', {
         mfa_ticket: ticket,
         challenge_id: d.challenge_id,
@@ -113,7 +120,7 @@ export function MfaPage() {
       {err ? <Alert type="error" message={err} showIcon closable onClose={() => setErr(null)}/> : null}
       <Space direction="vertical" size="middle" style={{width: '100%'}}>
         {showTotp ? (
-          <Card size="small" title="TOTP 动态码">
+          <Card size="small" className="bbs-mfa-method" title="TOTP 动态码">
             <Form layout="vertical" onFinish={onTotp}>
               <Form.Item name="code" label="6 位验证码" rules={[{required: true}]}>
                 <Input autoComplete="one-time-code" placeholder="000000"/>
@@ -125,7 +132,7 @@ export function MfaPage() {
           </Card>
         ) : null}
         {showFido ? (
-          <Card size="small" title="安全密钥 / FIDO2">
+          <Card size="small" className="bbs-mfa-method" title="安全密钥 / FIDO2">
             <Button type="primary" icon={<SafetyCertificateOutlined/>} block onClick={() => void onFido()}>
               使用安全密钥验证
             </Button>

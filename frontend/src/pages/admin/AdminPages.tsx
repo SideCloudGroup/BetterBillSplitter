@@ -45,6 +45,7 @@ export function AdminHomePage() {
       title="管理概览"
       subtitle="系统统计与后台入口"
       loading={loading}
+      maxWidth={1040}
       extra={
         <Space wrap>
           <Link to="/admin/users">
@@ -116,7 +117,7 @@ export function AdminUsersPage() {
   };
 
   return (
-    <PageShell title="用户管理" back={{to: '/admin'}} loading={loading}>
+    <PageShell title="用户管理" back={{to: '/admin'}} loading={loading} maxWidth={1200}>
       <SurfaceCard>
         <Table
           rowKey="id"
@@ -185,7 +186,7 @@ export function AdminPartiesPage() {
   }, []);
 
   return (
-    <PageShell title="派对管理" back={{to: '/admin'}} loading={loading}>
+    <PageShell title="派对管理" back={{to: '/admin'}} loading={loading} maxWidth={1200}>
       <SurfaceCard>
         <Table
           rowKey="id"
@@ -509,10 +510,10 @@ function payloadFromFormValues(
 }
 
 function SettingFieldRow({
-  field,
-  value,
-  onChange,
-}: {
+                           field,
+                           value,
+                           onChange,
+                         }: {
   field: SettingFieldDef;
   value: string | boolean | undefined;
   onChange: (key: string, next: string | boolean) => void;

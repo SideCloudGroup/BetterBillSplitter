@@ -1,9 +1,10 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {Button, Col, message, Modal, Row, Space, Table} from 'antd';
-import {CheckCircleOutlined, DownloadOutlined} from '@ant-design/icons';
+import {Button, Col, message, Modal, Row, Space} from 'antd';
+import {ArrowRightOutlined, CheckCircleOutlined, DownloadOutlined, SwapOutlined} from '@ant-design/icons';
 import {apiFetch, apiJson, downloadAuthenticated} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {formatMoney, parseAmount} from '@/lib/formatMoney';
+import {EmptyState, LedgerList, PageShell, SectionTitle, StatCard, SurfaceCard} from '@/components/ui';
 
 export function PartyBestPayPage() {
   const {id} = useParams();
@@ -66,6 +67,11 @@ export function PartyBestPayPage() {
     void load();
   }, [partyId]);
 
+  const totalTransfer = useMemo(
+    () => payRows.reduce((s, r) => s + parseAmount(r.amt), 0),
+    [payRows],
+  );
+
   const clearAll = () => {
     Modal.confirm({
       title: '确认清空未付？',
@@ -88,7 +94,7 @@ export function PartyBestPayPage() {
       back={{to: `/parties/${partyId}`}}
       loading={loading}
       error={err}
-      centered
+      maxWidth={1040}
       extra={
         <Space wrap>
           <Button
@@ -111,44 +117,47 @@ export function PartyBestPayPage() {
         </Space>
       }
     >
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <SurfaceCard title="优化后支付关系">
-            <Table
-              rowKey={(r) => `${r.debtor}-${r.cred}`}
-              pagination={false}
-              dataSource={payRows}
-              locale={{emptyText: '无待结算'}}
-              columns={[
-                {title: '付款方', dataIndex: 'debtor'},
-                {title: '收款方', dataIndex: 'cred'},
-                {
-                  title: '金额',
-                  dataIndex: 'amt',
-                  align: 'right',
-                  render: (a) => (
-                    <strong>
-                      {sym}
-                      {a}
-                    </strong>
-                  ),
-                },
-              ]}
-            />
+      <Row gutter={[16, 16]} style={{marginBottom: 24}}>
+        <Col xs={12} sm={8}>
+          <StatCard title="转账笔数" value={payRows.length} accent="primary"/>
+        </Col>
+        <Col xs={12} sm={8}>
+          <StatCard title="结算总额" value={formatMoney(sym, totalTransfer)} accent="warning"/>
+        </Col>
+        <Col xs={24} sm={8}>
+          <StatCard title="参与成员" value={statRows.length} accent="info"/>
+        </Col>
+      </Row>
+
+      <Row gutter={[24, 24]}>
+        <Col xs={24} lg={14}>
+          <SurfaceCard title={<SectionTitle icon={<SwapOutlined/>}>优化后支付关系</SectionTitle>}>
+            {payRows.length === 0 ? (
+              <EmptyState description="无待结算转账，账目已平衡"/>
+            ) : (
+              <ul className="bbs-entity-list">
+                {payRows.map((r) => (
+                  <li key={`${r.debtor}-${r.cred}`} className="bbs-bestpay-row">
+                    <span className="bbs-bestpay-row__party">{r.debtor}</span>
+                    <ArrowRightOutlined className="bbs-bestpay-row__arrow"/>
+                    <span className="bbs-bestpay-row__party">{r.cred}</span>
+                    <span className="bbs-bestpay-row__amt">{formatMoney(sym, r.amt)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </SurfaceCard>
         </Col>
-        <Col xs={24} lg={12}>
-          <SurfaceCard title="成员未付流入 / 流出">
-            <Table
-              rowKey="user"
-              pagination={false}
-              dataSource={statRows}
-              locale={{emptyText: '无'}}
-              columns={[
-                {title: '成员', dataIndex: 'user'},
-                {title: '应付', dataIndex: 'out', align: 'right', render: (x) => `${sym}${x}`},
-                {title: '应收', dataIndex: 'inn', align: 'right', render: (x) => `${sym}${x}`},
-              ]}
+        <Col xs={24} lg={10}>
+          <SurfaceCard title={<SectionTitle icon={<SwapOutlined/>}>成员流入 / 流出</SectionTitle>}>
+            <LedgerList
+              rows={statRows.map((r) => ({
+                id: r.user,
+                title: r.user,
+                meta: `应付 ${sym}${r.out} · 应收 ${sym}${r.inn}`,
+                amount: formatMoney(sym, parseAmount(r.out) - parseAmount(r.inn)),
+              }))}
+              empty={<EmptyState description="无统计数据"/>}
             />
           </SurfaceCard>
         </Col>

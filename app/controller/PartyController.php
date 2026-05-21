@@ -574,6 +574,10 @@ class PartyController extends BaseController
             return json(['ret' => 0, 'msg' => '该派对已归档']);
         }
 
+        if (! app()->userService->savePartyArchiveSnapshot($id)) {
+            return json(['ret' => 0, 'msg' => '生成归档快照失败，请重试']);
+        }
+
         try {
             Db::startTrans();
             $locked = Party::where('id', $id)->lock(true)->find();
@@ -597,7 +601,7 @@ class PartyController extends BaseController
 
         return json([
             'ret' => 1,
-            'msg' => '归档成功，即将下载快照文件',
+            'msg' => '归档成功，即将下载归档前快照（含最优支付）',
             'download_url' => '/api/user/party/' . $id . '/archive/download',
         ]);
     }
@@ -698,12 +702,22 @@ class PartyController extends BaseController
         if (! $party || ! $party->isArchived()) {
             return response('仅已归档派对可下载归档快照', 404);
         }
+
+        $snapshotPath = app()->userService->getPartyArchiveSnapshotPath($partyId);
+        $archivedSuffix = $party->archived_at
+            ? date('Ymd_His', strtotime((string)$party->archived_at))
+            : date('Ymd_His');
+        $filename = 'party_archive_' . $party->id . '_' . $archivedSuffix . '.json';
+
+        if (is_readable($snapshotPath)) {
+            return download($snapshotPath, $filename, false, 60);
+        }
+
         $data = app()->userService->buildPartyExportData($partyId);
         if ($data === []) {
             return response('派对不存在', 404);
         }
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-        $filename = 'party_archive_' . $party->id . '_' . date('Ymd_His') . '.json';
         $tempPath = runtime_path() . 'temp/' . uniqid('party_archive_', true) . '.json';
         file_put_contents($tempPath, $json);
 

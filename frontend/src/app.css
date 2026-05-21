@@ -264,6 +264,623 @@ body {
     line-height: 1.6;
 }
 
+/* ---------- 账户与安全 ---------- */
+.bbs-profile-hero {
+    border-radius: 14px !important;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 48%, #fff 100%) !important;
+    border: 1px solid #ccfbf1 !important;
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 4px 14px rgba(13, 148, 136, 0.08) !important;
+}
+
+.bbs-profile-hero .ant-card-body {
+    padding: 24px 28px !important;
+}
+
+.bbs-profile-hero__avatar {
+    background: linear-gradient(145deg, #0d9488, #14b8a6) !important;
+    flex-shrink: 0;
+}
+
+.bbs-profile-stat {
+    text-align: center;
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid #e2e8f0;
+    min-width: 88px;
+}
+
+.bbs-profile-stat__value {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f766e;
+    line-height: 1.2;
+}
+
+.bbs-profile-stat__label {
+    display: block;
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.bbs-security-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.bbs-security-item {
+    display: flex;
+    gap: 16px;
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fafbfc;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bbs-security-item:hover {
+    border-color: #99f6e4;
+    box-shadow: 0 2px 8px rgba(13, 148, 136, 0.08);
+}
+
+.bbs-security-item--on {
+    border-color: #5eead4;
+    background: #f0fdfa;
+}
+
+.bbs-security-item__icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    font-size: 22px;
+}
+
+.bbs-security-item__icon--totp {
+    background: #ede9fe;
+    color: #6d28d9;
+}
+
+.bbs-security-item__icon--passkey {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.bbs-security-item__icon--fido {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.bbs-security-item__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.bbs-security-item__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 12px;
+    margin-bottom: 6px;
+}
+
+.bbs-security-item__title {
+    margin: 0 !important;
+    font-size: 16px !important;
+}
+
+.bbs-security-item__desc {
+    display: block;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.bbs-security-device-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bbs-security-device-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+}
+
+.bbs-profile-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.bbs-profile-section-title .anticon {
+    color: #0d9488;
+    font-size: 18px;
+}
+
+/* ---------- 派对详情 ---------- */
+.bbs-party-hero {
+    border-radius: 14px !important;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #eff6ff 0%, #f0fdfa 55%, #fff 100%) !important;
+    border: 1px solid #bae6fd !important;
+    box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.06), 0 4px 14px rgba(2, 132, 199, 0.08) !important;
+}
+
+.bbs-party-hero .ant-card-body {
+    padding: 22px 26px !important;
+}
+
+.bbs-party-hero__avatar {
+    background: linear-gradient(145deg, #0284c7, #0d9488) !important;
+    flex-shrink: 0;
+}
+
+.bbs-party-invite {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid #e2e8f0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.bbs-party-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.bbs-party-action-wrap {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: inherit;
+    font: inherit;
+}
+
+.bbs-party-action-wrap:disabled,
+.bbs-party-action--disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+a:has(.bbs-party-action) {
+    text-decoration: none;
+    color: inherit;
+}
+
+.bbs-party-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 88px;
+    padding: 14px 10px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.bbs-party-action-wrap:hover .bbs-party-action,
+a:hover .bbs-party-action {
+    border-color: var(--bbs-party-action-accent, #0d9488);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
+}
+
+.bbs-party-action__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    font-size: 20px;
+    color: var(--bbs-party-action-accent, #0d9488);
+    background: color-mix(in srgb, var(--bbs-party-action-accent, #0d9488) 12%, #fff);
+}
+
+.bbs-party-action__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    text-align: center;
+    line-height: 1.3;
+}
+
+.bbs-party-item-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bbs-party-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fafbfc;
+    margin-bottom: 10px;
+    transition: border-color 0.15s ease;
+}
+
+.bbs-party-item:last-child {
+    margin-bottom: 0;
+}
+
+.bbs-party-item--paid {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.bbs-party-item__main {
+    flex: 1;
+    min-width: 0;
+}
+
+.bbs-party-item__title {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+.bbs-party-item__meta {
+    font-size: 12px;
+}
+
+.bbs-party-item__side {
+    flex-shrink: 0;
+}
+
+.bbs-party-item__amount {
+    font-size: 16px;
+    color: #0f766e;
+    white-space: nowrap;
+}
+
+.bbs-party-member-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bbs-party-member {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.bbs-party-member:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.bbs-party-member__info {
+    min-width: 0;
+}
+
+.bbs-party-empty {
+    text-align: center;
+    padding: 28px 16px;
+}
+
+/* ---------- 通用列表与表单 ---------- */
+.bbs-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.bbs-section-title .anticon {
+    color: #0d9488;
+    font-size: 17px;
+}
+
+.bbs-empty-state {
+    text-align: center;
+    padding: 32px 16px;
+}
+
+.bbs-empty-state__action {
+    margin-top: 14px;
+}
+
+.bbs-entity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+a.bbs-entity-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+a.bbs-entity-card:hover {
+    border-color: #5eead4;
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
+    transform: translateY(-1px);
+}
+
+.bbs-entity-card__icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: #f0fdfa;
+    color: #0f766e;
+    font-size: 20px;
+}
+
+.bbs-entity-card__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bbs-entity-card__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.bbs-entity-card__title {
+    font-size: 15px !important;
+}
+
+.bbs-entity-card__desc {
+    display: block;
+    font-size: 13px;
+}
+
+.bbs-entity-card__amount-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 2px;
+}
+
+.bbs-entity-card__amount-label {
+    font-size: 12px !important;
+}
+
+.bbs-entity-card__amount {
+    font-size: 15px !important;
+}
+
+.bbs-entity-card__chevron {
+    flex-shrink: 0;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.bbs-summary-strip {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
+}
+
+.bbs-summary-strip--success {
+    border-color: #bbf7d0;
+    background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%);
+}
+
+.bbs-summary-strip--warning {
+    border-color: #fde68a;
+    background: linear-gradient(135deg, #fffbeb 0%, #fff 100%);
+}
+
+.bbs-summary-strip--primary {
+    border-color: #99f6e4;
+    background: linear-gradient(135deg, #f0fdfa 0%, #fff 100%);
+}
+
+.bbs-summary-strip__value {
+    font-size: 22px !important;
+}
+
+.bbs-ledger-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bbs-ledger-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fafbfc;
+    margin-bottom: 10px;
+}
+
+.bbs-ledger-row:last-child {
+    margin-bottom: 0;
+}
+
+.bbs-ledger-row--paid {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.bbs-ledger-row__main {
+    flex: 1;
+    min-width: 0;
+}
+
+.bbs-ledger-row__title {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+.bbs-ledger-row__meta {
+    font-size: 12px;
+}
+
+.bbs-ledger-row__side {
+    flex-shrink: 0;
+}
+
+.bbs-ledger-row__amount {
+    font-size: 16px;
+    color: #0f766e;
+    white-space: nowrap;
+}
+
+.bbs-form-page .ant-card-body {
+    padding: 28px 28px 24px !important;
+}
+
+.bbs-form-page .ant-form-item:last-child {
+    margin-bottom: 0;
+}
+
+.bbs-mfa-method {
+    border-radius: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+}
+
+.bbs-mfa-method .ant-card-head {
+    border-bottom: 1px solid #f1f5f9;
+    min-height: 44px;
+}
+
+.bbs-mfa-method .ant-card-body {
+    padding: 18px 20px !important;
+}
+
+.bbs-bestpay-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    list-style: none;
+}
+
+.bbs-bestpay-row__party {
+    font-weight: 600;
+    color: #334155;
+}
+
+.bbs-bestpay-row__arrow {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.bbs-bestpay-row__amt {
+    margin-left: auto;
+    font-weight: 700;
+    color: #b45309;
+    font-size: 16px;
+}
+
+@media (max-width: 768px) {
+    .bbs-party-hero .ant-card-body {
+        padding: 18px 16px !important;
+    }
+
+    .bbs-party-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bbs-party-item__side {
+        justify-content: space-between;
+    }
+
+    .bbs-ledger-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bbs-ledger-row__side {
+        justify-content: space-between;
+    }
+
+    .bbs-bestpay-row__amt {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .bbs-profile-hero .ant-card-body {
+        padding: 18px 16px !important;
+    }
+
+    .bbs-security-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bbs-security-item__head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
 /* ---------- 移动端顶栏导航 ---------- */
 .bbs-mobile-top {
     position: sticky;

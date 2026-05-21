@@ -216,7 +216,7 @@ class AuthController extends BaseController
     {
         $ticket = (string)$request->param('mfa_ticket', '');
         $loginSession = Cache::get('mfa_login:' . $ticket);
-        if ($loginSession === null) {
+        if ($loginSession === null || $loginSession === false || $loginSession === '') {
             return json(['ret' => 0, 'msg' => '登录会话已过期']);
         }
         $loginSession = json_decode((string)$loginSession, true);
@@ -238,7 +238,7 @@ class AuthController extends BaseController
     {
         $ticket = (string)$request->param('mfa_ticket', '');
         $loginSession = Cache::get('mfa_login:' . $ticket);
-        if ($loginSession === null) {
+        if ($loginSession === null || $loginSession === false || $loginSession === '') {
             return json(['ret' => 0, 'msg' => '登录会话已过期']);
         }
         $loginSession = json_decode((string)$loginSession, true);
@@ -255,7 +255,7 @@ class AuthController extends BaseController
         $ticket = (string)$request->param('mfa_ticket', '');
         $challengeId = (string)$request->param('challenge_id', '');
         $loginSession = Cache::get('mfa_login:' . $ticket);
-        if ($loginSession === null) {
+        if ($loginSession === null || $loginSession === false || $loginSession === '') {
             return json(['ret' => 0, 'msg' => '登录会话已过期']);
         }
         $loginSession = json_decode((string)$loginSession, true);
@@ -263,8 +263,7 @@ class AuthController extends BaseController
         if ($challengeId === '') {
             return json(['ret' => 0, 'msg' => '缺少 challenge_id']);
         }
-        $antixss = new AntiXSS();
-        $result = FIDO::fidoAssertHandle($user, $antixss->xss_clean($request->param()), $ticket, $challengeId);
+        $result = FIDO::fidoAssertHandle($user, $request->param(), $ticket, $challengeId);
         if ($result['ret'] !== 1) {
             return json($result);
         }

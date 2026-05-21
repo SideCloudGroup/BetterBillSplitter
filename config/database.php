@@ -26,6 +26,8 @@ return [
             // 服务器地址
             'hostname' => env('MARIADB_HOST', '127.0.0.1'),
             'port' => env('MARIADB_PORT', '3306'),
+            // Socket
+            'socket' => env('MARIADB_SOCKET', ''),
             // 数据库名
             'database' => env('MARIADB_DATABASE', ''),
             // 用户名

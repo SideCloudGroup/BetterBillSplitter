@@ -1,8 +1,8 @@
 import {useEffect, useState} from 'react';
-import {Link} from 'react-router-dom';
-import {Table} from 'antd';
+import {WalletOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {formatMoney} from '@/lib/formatMoney';
+import {EmptyState, EntityCard, PageShell, SectionTitle, SurfaceCard} from '@/components/ui';
 
 type PartyRow = {
   id: number;
@@ -35,33 +35,29 @@ export function PaymentListPage() {
   }, []);
 
   return (
-    <PageShell title="支付" subtitle="查看各派对中你需要支付的款项" loading={loading} error={err} centered>
-      <SurfaceCard>
-        <Table<PartyRow>
-          rowKey="id"
-          pagination={false}
-          dataSource={rows}
-          locale={{emptyText: '暂无待付项目'}}
-          columns={[
-            {
-              title: '派对',
-              dataIndex: 'name',
-              render: (t, r) => <Link to={`/payment/party/${r.id}`}>{t}</Link>,
-            },
-            {title: '说明', dataIndex: 'description', render: (t) => t || '—'},
-            {
-              title: '待付',
-              dataIndex: 'total_amount',
-              align: 'right',
-              render: (_, r) => (
-                <strong style={{color: '#b45309'}}>
-                  {r.currency_symbol ?? ''}
-                  {r.total_amount ?? ''}
-                </strong>
-              ),
-            },
-          ]}
-        />
+    <PageShell title="支付" subtitle="查看各派对中你需要支付的款项" loading={loading} error={err} maxWidth={720}>
+      <SurfaceCard title={<SectionTitle icon={<WalletOutlined/>}>待付派对</SectionTitle>}>
+        {rows.length === 0 ? (
+          <EmptyState description="暂无待付项目，太好了！"/>
+        ) : (
+          <div className="bbs-entity-list">
+            {rows.map((r) => {
+              const sym = r.currency_symbol ?? '¥';
+              return (
+                <EntityCard
+                  key={r.id}
+                  to={`/payment/party/${r.id}`}
+                  title={r.name}
+                  description={r.description}
+                  amount={formatMoney(sym, r.total_amount ?? 0)}
+                  amountLabel="待付"
+                  amountTone="warning"
+                  icon={<WalletOutlined/>}
+                />
+              );
+            })}
+          </div>
+        )}
       </SurfaceCard>
     </PageShell>
   );

@@ -26,13 +26,13 @@ use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorAttestationResponseValidator;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
+use Webauthn\CredentialRecord;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 use Webauthn\PublicKeyCredentialParameters;
 use Webauthn\PublicKeyCredentialRequestOptions;
 use Webauthn\PublicKeyCredentialRpEntity;
-use Webauthn\PublicKeyCredentialSource;
 use Webauthn\PublicKeyCredentialUserEntity;
 
 
@@ -233,13 +233,13 @@ class WebAuthn
                 'json'
             );
             $authenticatorAssertionResponseValidator = self::getAuthenticatorAssertionResponseValidator();
-            $publicKeyCredentialSource_body = $serializer->deserialize(
+            $credentialRecord = $serializer->deserialize(
                 $publicKeyCredentialSource->body,
-                PublicKeyCredentialSource::class,
+                CredentialRecord::class,
                 'json'
             );
             $result = $authenticatorAssertionResponseValidator->check(
-                $publicKeyCredentialSource_body,
+                $credentialRecord,
                 $publicKeyCredential->response,
                 $publicKeyCredentialRequestOptions,
                 Request::host(),

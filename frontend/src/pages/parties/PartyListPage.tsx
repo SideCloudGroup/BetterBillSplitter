@@ -1,11 +1,34 @@
 import {useEffect, useState} from 'react';
 import {Link} from 'react-router-dom';
-import {Button, Col, Row, Space, Table, Tag} from 'antd';
-import {LoginOutlined, PlusOutlined} from '@ant-design/icons';
+import {Button, Col, Row, Space, Tag} from 'antd';
+import {LoginOutlined, PlusOutlined, TeamOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {EmptyState, EntityCard, PageShell, SectionTitle, SurfaceCard} from '@/components/ui';
 
 type P = { id: number; name: string; description?: string; archived_at?: string | null };
+
+function PartyGroup({title, parties}: { title: string; parties: P[] }) {
+  return (
+    <SurfaceCard title={<SectionTitle icon={<TeamOutlined/>}>{title}</SectionTitle>}>
+      {parties.length === 0 ? (
+        <EmptyState description="暂无派对"/>
+      ) : (
+        <div className="bbs-entity-list">
+          {parties.map((p) => (
+            <EntityCard
+              key={p.id}
+              to={`/parties/${p.id}`}
+              title={p.name}
+              description={p.description}
+              badge={p.archived_at ? <Tag color="default">已归档</Tag> : null}
+              icon={<TeamOutlined/>}
+            />
+          ))}
+        </div>
+      )}
+    </SurfaceCard>
+  );
+}
 
 export function PartyListPage() {
   const [loading, setLoading] = useState(true);
@@ -26,26 +49,12 @@ export function PartyListPage() {
     })();
   }, []);
 
-  const cols = [
-    {
-      title: '名称',
-      dataIndex: 'name',
-      render: (t: string, r: P) => (
-        <Space>
-          <Link to={`/parties/${r.id}`}>{t}</Link>
-          {r.archived_at ? <Tag color="default">已归档</Tag> : null}
-        </Space>
-      ),
-    },
-    {title: '说明', dataIndex: 'description', render: (t: string) => t || '—'},
-  ];
-
   return (
     <PageShell
       title="派对"
       subtitle="管理你创建或加入的分账派对"
       loading={loading}
-      centered
+      maxWidth={1040}
       extra={
         <Space wrap>
           <Link to="/parties/create">
@@ -61,16 +70,12 @@ export function PartyListPage() {
         </Space>
       }
     >
-      <Row gutter={[16, 16]}>
+      <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>
-          <SurfaceCard title="我创建的">
-            <Table<P> rowKey="id" pagination={false} dataSource={owned} columns={cols} locale={{emptyText: '暂无'}}/>
-          </SurfaceCard>
+          <PartyGroup title="我创建的" parties={owned}/>
         </Col>
         <Col xs={24} lg={12}>
-          <SurfaceCard title="我加入的">
-            <Table<P> rowKey="id" pagination={false} dataSource={joined} columns={cols} locale={{emptyText: '暂无'}}/>
-          </SurfaceCard>
+          <PartyGroup title="我加入的" parties={joined}/>
         </Col>
       </Row>
     </PageShell>

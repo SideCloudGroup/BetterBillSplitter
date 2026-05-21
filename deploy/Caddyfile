@@ -25,7 +25,7 @@
 	@backend path_regexp backend ^/(api|captcha|static)(/|$)
 	handle @backend {
 		@notFile not file {path}
-		rewrite @notFile /index.php?s={path}
+		rewrite @notFile /index.php?s={path}&{query}
 
 		php_fastcgi 127.0.0.1:9000 {
 			root /var/www/html/public

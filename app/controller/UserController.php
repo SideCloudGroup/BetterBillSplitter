@@ -9,6 +9,7 @@ use app\model\Currency;
 use app\model\Item;
 use app\model\MFACredential;
 use app\model\Party;
+use app\model\User;
 use app\service\MFA\FIDO;
 use app\service\MFA\TOTP;
 use app\service\MFA\WebAuthn;
@@ -485,11 +486,48 @@ class UserController extends BaseController
     public function updateProfile(Request $request): Json
     {
         $user = app()->userService->getUser();
+        $antixss = new AntiXSS();
+        $username = trim((string)$antixss->xss_clean($request->param('username', '')));
+        $currentPassword = (string)$request->param('current_password', '');
+        $newPassword = (string)$request->param('new_password', '');
+        $confirmPassword = (string)$request->param('confirm_password', '');
+        $changingPassword = $currentPassword !== '' || $newPassword !== '' || $confirmPassword !== '';
 
-        $user->username = $request->param('username');
+        if ($changingPassword) {
+            if ($currentPassword === '' || ! password_verify($currentPassword, $user->password)) {
+                return json(['ret' => 0, 'msg' => '当前密码不正确']);
+            }
+            if ($newPassword === '') {
+                return json(['ret' => 0, 'msg' => '请填写新密码']);
+            }
+            if ($newPassword !== $confirmPassword) {
+                return json(['ret' => 0, 'msg' => '两次新密码不一致']);
+            }
+            if (strlen($newPassword) < 6) {
+                return json(['ret' => 0, 'msg' => '新密码长度不能少于 6 位']);
+            }
+            $user->password = password_hash($newPassword, PASSWORD_ARGON2ID);
+        }
+
+        if ($username !== '' && $username !== $user->username) {
+            $exists = (new User())->where('username', $username)->findOrEmpty();
+            if (! $exists->isEmpty()) {
+                return json(['ret' => 0, 'msg' => '用户名已存在']);
+            }
+            $user->username = $username;
+        }
+
         $user->save();
 
-        return json(['ret' => 1, 'msg' => '更新成功']);
+        return json([
+            'ret' => 1,
+            'msg' => $changingPassword ? '密码已更新' : '更新成功',
+            'user' => [
+                'id' => $user->id,
+                'username' => $user->username,
+                'is_admin' => (bool)$user->is_admin,
+            ],
+        ]);
     }
 
     public function webauthnRequestRegister(Request $request): Json

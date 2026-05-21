@@ -19,7 +19,7 @@ Route::group('api', function () {
     Route::get('auth/webauthn/challenge', 'api.Auth/webauthnChallenge');
     Route::post('auth/webauthn/verify', 'api.Auth/webauthnVerify');
     Route::post('auth/mfa/totp', 'api.Auth/mfaTotp');
-    Route::get('auth/mfa/fido/challenge', 'api.Auth/mfaFidoChallenge');
+    Route::post('auth/mfa/fido/challenge', 'api.Auth/mfaFidoChallenge');
     Route::post('auth/mfa/fido/verify', 'api.Auth/mfaFidoVerify');
 
     Route::group('user', function () {

@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {Alert, Button, Form, Input, Typography} from 'antd';
 import {KeyOutlined} from '@ant-design/icons';
-import {startAuthentication} from '@simplewebauthn/browser';
+import {type PublicKeyCredentialRequestOptionsJSON, startAuthentication} from '@simplewebauthn/browser';
 import {applyAuthPayload, setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
 import {AuthCaptcha, getCaptchaExtraParams} from '@/components/AuthCaptcha';
@@ -73,7 +73,9 @@ export function LoginPage() {
         setErr(d.msg || '无法获取通行密钥挑战');
         return;
       }
-      const assertion = await startAuthentication({optionsJSON: JSON.stringify(d.publicKey)});
+      const assertion = await startAuthentication({
+        optionsJSON: d.publicKey as PublicKeyCredentialRequestOptionsJSON,
+      });
       const res = await fetch('/api/auth/webauthn/verify', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},

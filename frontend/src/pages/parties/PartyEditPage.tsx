@@ -99,7 +99,7 @@ export function PartyEditPage() {
       error={fatal}
       layout="narrow"
     >
-      <SurfaceCard>
+      <SurfaceCard className="bbs-form-page">
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item name="name" label="名称" rules={[{required: true}]}>
             <Input/>

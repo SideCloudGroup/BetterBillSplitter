@@ -248,6 +248,29 @@ class UserService extends Service
     }
 
     /**
+     * 归档前保存快照（含未付账目与最优支付），供归档后下载
+     */
+    public function savePartyArchiveSnapshot(int $partyId): bool
+    {
+        $data = $this->buildPartyExportData($partyId);
+        if ($data === []) {
+            return false;
+        }
+        $data['snapshot_kind'] = 'pre_archive';
+        $data['party_id'] = $partyId;
+        $dir = runtime_path() . 'archive';
+        if (! is_dir($dir) && ! mkdir($dir, 0755, true) && ! is_dir($dir)) {
+            return false;
+        }
+        $path = $this->getPartyArchiveSnapshotPath($partyId);
+
+        return file_put_contents(
+                $path,
+                json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            ) !== false;
+    }
+
+    /**
      * 最优支付下载与归档导出共用数据结构
      *
      * @return array<string, mixed>
@@ -356,5 +379,10 @@ class UserService extends Service
             ->order('item.id', 'asc')
             ->select()
             ->toArray();
+    }
+
+    public function getPartyArchiveSnapshotPath(int $partyId): string
+    {
+        return runtime_path() . 'archive' . DIRECTORY_SEPARATOR . 'party_' . $partyId . '.json';
     }
 }

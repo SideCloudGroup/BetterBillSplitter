@@ -1,9 +1,10 @@
 import {useEffect, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
-import {Alert, Button, Table, Tag, Typography} from 'antd';
-import {PlusOutlined} from '@ant-design/icons';
+import {Alert, Button, message} from 'antd';
+import {AccountBookOutlined, PlusOutlined} from '@ant-design/icons';
 import {apiJson, apiPostForm} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {formatMoney} from '@/lib/formatMoney';
+import {EmptyState, EntityCard, LedgerList, PageShell, SectionTitle, SummaryStrip, SurfaceCard,} from '@/components/ui';
 
 type PartyRow = {
   id: number;
@@ -41,7 +42,7 @@ export function ItemListPage() {
       subtitle="管理各派对中他人应付给你的款项"
       loading={loading}
       error={err}
-      centered
+      maxWidth={720}
       extra={
         <Link to="/items/add">
           <Button type="primary" icon={<PlusOutlined/>}>
@@ -50,31 +51,37 @@ export function ItemListPage() {
         </Link>
       }
     >
-      <SurfaceCard>
-        <Table<PartyRow>
-          rowKey="id"
-          pagination={false}
-          dataSource={rows}
-          locale={{emptyText: '暂无收款记录'}}
-          columns={[
-            {
-              title: '派对',
-              dataIndex: 'name',
-              render: (t, r) => <Link to={`/items/party/${r.id}`}>{t}</Link>,
-            },
-            {title: '说明', dataIndex: 'description', render: (t) => t || '—'},
-            {
-              title: '未收回款',
-              align: 'right',
-              render: (_, r) => (
-                <strong style={{color: '#15803d'}}>
-                  {r.currency_symbol ?? ''}
-                  {r.total_amount ?? ''}
-                </strong>
-              ),
-            },
-          ]}
-        />
+      <SurfaceCard title={<SectionTitle icon={<AccountBookOutlined/>}>按派对查看</SectionTitle>}>
+        {rows.length === 0 ? (
+          <EmptyState
+            description="暂无收款记录"
+            action={
+              <Link to="/items/add">
+                <Button type="primary" size="small" icon={<PlusOutlined/>}>
+                  添加收款
+                </Button>
+              </Link>
+            }
+          />
+        ) : (
+          <div className="bbs-entity-list">
+            {rows.map((r) => {
+              const sym = r.currency_symbol ?? '¥';
+              return (
+                <EntityCard
+                  key={r.id}
+                  to={`/items/party/${r.id}`}
+                  title={r.name}
+                  description={r.description}
+                  amount={formatMoney(sym, r.total_amount ?? 0)}
+                  amountLabel="未收回款"
+                  amountTone="success"
+                  icon={<AccountBookOutlined/>}
+                />
+              );
+            })}
+          </div>
+        )}
       </SurfaceCard>
     </PageShell>
   );
@@ -98,10 +105,8 @@ export function ItemPartyPage() {
     name?: string;
     description?: string;
     currency_symbol?: string;
-    is_archived?: boolean
-  } | null>(
-    null,
-  );
+    is_archived?: boolean;
+  } | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [unpaid, setUnpaid] = useState('');
 
@@ -138,6 +143,7 @@ export function ItemPartyPage() {
 
   const mark = async (itemId: number, paid: '0' | '1') => {
     await apiPostForm(`/user/item/${itemId}`, {paid});
+    message.success(paid === '1' ? '已标记为已付' : '已标记为未付');
     await load();
   };
 
@@ -147,59 +153,47 @@ export function ItemPartyPage() {
   return (
     <PageShell
       title={`收款 — ${party?.name || ''}`}
-      subtitle={party?.description || undefined}
+      subtitle={party?.description || '管理本派对下的收款条目'}
       back={{to: '/items'}}
       loading={loading}
       error={err}
+      maxWidth={800}
+      extra={
+        !archived ? (
+          <Link to={`/items/add?party_id=${id}`}>
+            <Button type="primary" icon={<PlusOutlined/>} size="small">
+              添加收款
+            </Button>
+          </Link>
+        ) : null
+      }
     >
-      {archived ?
-        <Alert type="warning" message="该派对已归档，无法修改支付状态。" showIcon style={{marginBottom: 16}}/> : null}
-      <Typography.Paragraph>
-        未收回款：
-        <Typography.Text strong style={{fontSize: 18, color: '#15803d', marginLeft: 8}}>
-          {sym}
-          {unpaid}
-        </Typography.Text>
-      </Typography.Paragraph>
-      <SurfaceCard>
-        <Table<Item>
-          rowKey="id"
-          pagination={false}
-          dataSource={items}
-          locale={{emptyText: '无条目'}}
-          columns={[
-            {title: '支付人', dataIndex: 'username'},
-            {title: '描述', dataIndex: 'description'},
-            {
-              title: '金额',
-              dataIndex: 'amount',
-              align: 'right',
-              render: (a) => `${sym}${a}`,
-            },
-            {
-              title: '状态',
-              dataIndex: 'paid',
-              render: (p) => (Number(p) === 1 ? <Tag color="success">已付</Tag> : <Tag color="warning">未付</Tag>),
-            },
-            {
-              title: '操作',
-              render: (_, r) => {
-                const paid = Number(r.paid) === 1;
-                if (archived) return null;
-                if (!paid)
-                  return (
-                    <Button type="primary" size="small" onClick={() => void mark(r.id, '1')}>
-                      标记已付
-                    </Button>
-                  );
-                return (
-                  <Button size="small" onClick={() => void mark(r.id, '0')}>
-                    标记未付
-                  </Button>
-                );
-              },
-            },
-          ]}
+      {archived ? (
+        <Alert type="warning" message="该派对已归档，无法修改支付状态。" showIcon style={{marginBottom: 16}}/>
+      ) : null}
+      <SummaryStrip label="未收回款合计" value={`${sym}${unpaid}`} tone="success"/>
+      <SurfaceCard title={<SectionTitle icon={<AccountBookOutlined/>}>收款条目</SectionTitle>}>
+        <LedgerList
+          rows={items.map((it) => {
+            const paid = Number(it.paid) === 1;
+            return {
+              id: it.id,
+              title: it.description || '（无描述）',
+              meta: `支付人 ${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
+              amount: formatMoney(sym, it.amount),
+              paid,
+              action: archived ? undefined : paid ? (
+                <Button size="small" onClick={() => void mark(it.id, '0')}>
+                  标为未付
+                </Button>
+              ) : (
+                <Button type="primary" size="small" onClick={() => void mark(it.id, '1')}>
+                  标为已付
+                </Button>
+              ),
+            };
+          })}
+          empty={<EmptyState description="暂无收款条目"/>}
         />
       </SurfaceCard>
     </PageShell>

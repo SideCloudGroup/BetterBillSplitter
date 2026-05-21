@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {Table, Typography} from 'antd';
+import {WalletOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {formatMoney} from '@/lib/formatMoney';
+import {EmptyState, LedgerList, PageShell, SectionTitle, SummaryStrip, SurfaceCard} from '@/components/ui';
 
 type Item = { id: number; username: string; description: string; amount: string | number; created_at?: string };
 
@@ -47,40 +48,22 @@ export function PaymentPartyPage() {
   return (
     <PageShell
       title={`支付 — ${party?.name || ''}`}
-      subtitle={party?.description || undefined}
+      subtitle={party?.description || '你需要支付的款项明细'}
       back={{to: '/payment'}}
       loading={loading}
       error={err}
+      maxWidth={800}
     >
-      <Typography.Paragraph style={{marginBottom: 16}}>
-        合计待付：
-        <Typography.Text strong style={{fontSize: 18, color: '#b45309', marginLeft: 8}}>
-          {sym}
-          {total}
-        </Typography.Text>
-      </Typography.Paragraph>
-      <SurfaceCard>
-        <Table<Item>
-          rowKey="id"
-          pagination={false}
-          dataSource={items}
-          locale={{emptyText: '无待付条目'}}
-          columns={[
-            {title: '发起人', dataIndex: 'username'},
-            {title: '描述', dataIndex: 'description'},
-            {
-              title: '金额',
-              dataIndex: 'amount',
-              align: 'right',
-              render: (a) => (
-                <strong>
-                  {sym}
-                  {a}
-                </strong>
-              ),
-            },
-            {title: '时间', dataIndex: 'created_at', align: 'right', render: (t) => t || '—'},
-          ]}
+      <SummaryStrip label="合计待付" value={`${sym}${total}`} tone="warning"/>
+      <SurfaceCard title={<SectionTitle icon={<WalletOutlined/>}>待付条目</SectionTitle>}>
+        <LedgerList
+          rows={items.map((it) => ({
+            id: it.id,
+            title: it.description || '（无描述）',
+            meta: `发起人 ${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
+            amount: formatMoney(sym, it.amount),
+          }))}
+          empty={<EmptyState description="无待付条目"/>}
         />
       </SurfaceCard>
     </PageShell>
