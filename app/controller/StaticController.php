@@ -37,35 +37,36 @@ class StaticController extends BaseController
 
         // 设置缓存头
         $lastModified = filemtime($fullPath);
-        $etag = md5_file($fullPath);
+        $etag = '"' . md5_file($fullPath) . '"';
+        $lastModifiedHttp = gmdate('D, d M Y H:i:s', $lastModified) . ' GMT';
 
-        // 检查客户端缓存
+        $cacheHeaders = [
+            'Last-Modified' => $lastModifiedHttp,
+            'ETag' => $etag,
+            'Cache-Control' => 'public, max-age=31536000',
+        ];
+
         $ifModifiedSince = $request->header('If-Modified-Since');
         $ifNoneMatch = $request->header('If-None-Match');
 
-        if ($ifModifiedSince && strtotime($ifModifiedSince) >= $lastModified) {
-            return response('', 304);
+        $notModified = false;
+        if ($ifNoneMatch !== null && $ifNoneMatch !== '') {
+            $notModified = trim($ifNoneMatch) === $etag || str_contains($ifNoneMatch, $etag);
+        } elseif ($ifModifiedSince !== null && $ifModifiedSince !== '') {
+            $since = strtotime($ifModifiedSince);
+            $notModified = $since !== false && $since >= $lastModified;
         }
 
-        if ($ifNoneMatch && $ifNoneMatch === $etag) {
-            return response('', 304);
+        if ($notModified) {
+            return response('', 304)->header($cacheHeaders);
         }
 
-        // 读取文件内容
         $content = file_get_contents($fullPath);
 
-        // 创建响应
-        $response = response($content)
-            ->header([
-                'Content-Type' => $mimeType,
-                'Content-Length' => filesize($fullPath),
-                'Last-Modified' => gmdate('D, d M Y H:i:s T', $lastModified),
-                'ETag' => $etag,
-                'Cache-Control' => 'public, max-age=31536000', // 1年缓存
-                'Expires' => gmdate('D, d M Y H:i:s T', time() + 31536000)
-            ]);
-
-        return $response;
+        return response($content)->header(array_merge($cacheHeaders, [
+            'Content-Type' => $mimeType,
+            'Content-Length' => (string)filesize($fullPath),
+        ]));
     }
 
     /**

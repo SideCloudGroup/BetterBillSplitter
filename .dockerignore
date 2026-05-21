@@ -13,6 +13,7 @@ docker-compose.yml
 Dockerfile
 LICENSE
 README.md
+.github
 
 .gitignore
 .example.env

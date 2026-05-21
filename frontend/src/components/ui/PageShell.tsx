@@ -6,7 +6,7 @@ import {ArrowLeftOutlined} from '@ant-design/icons';
 type PageLayout = 'wide' | 'narrow';
 
 type PageShellProps = {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   extra?: ReactNode;
   back?: { to: string; label?: string };
@@ -54,9 +54,13 @@ export function PageShell({
           </Button>
         </Link>
       ) : null}
-      <Typography.Title level={3} style={{margin: 0, color: token.colorTextHeading}}>
-        {title}
-      </Typography.Title>
+      {typeof title === 'string' ? (
+        <Typography.Title level={3} style={{margin: 0, color: token.colorTextHeading}}>
+          {title}
+        </Typography.Title>
+      ) : (
+        title
+      )}
       {subtitle ? (
         <Typography.Paragraph type="secondary" className="bbs-page-subtitle">
           {subtitle}

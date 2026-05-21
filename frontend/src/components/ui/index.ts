@@ -7,3 +7,4 @@ export {EntityCard} from './EntityCard';
 export {SummaryStrip} from './SummaryStrip';
 export {LedgerList, type LedgerRow} from './LedgerList';
 export {SectionTitle} from './SectionTitle';
+export {ActivityTimeline, type ActivityItem} from './ActivityTimeline';

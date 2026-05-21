@@ -171,7 +171,11 @@ class PartyController extends BaseController
             ->find();
 
         if ($existingMember) {
-            return json(['ret' => 0, 'msg' => '您已经是该派对的成员']);
+            return json([
+                'ret' => 0,
+                'msg' => '您已经是该派对的成员',
+                'data' => ['party_id' => $party->id, 'party_name' => $party->name],
+            ]);
         }
 
         try {
@@ -181,7 +185,11 @@ class PartyController extends BaseController
             $member->user_id = $userId;
             $member->save();
 
-            return json(['ret' => 1, 'msg' => '成功加入派对：' . $party->name]);
+            return json([
+                'ret' => 1,
+                'msg' => '成功加入派对：' . $party->name,
+                'data' => ['party_id' => $party->id, 'party_name' => $party->name],
+            ]);
         } catch (Exception $e) {
             return json(['ret' => 0, 'msg' => '加入失败：' . $e->getMessage()]);
         }

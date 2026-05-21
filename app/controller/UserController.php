@@ -25,91 +25,230 @@ class UserController extends BaseController
 {
     public function processAddItem(Request $request): Json
     {
+        $partyId = (int)$request->param('party_id');
+        $description = (string)$request->param('description');
+        $unit = (string)$request->param('unit');
+        $splitsRaw = $request->param('splits');
+        $splits = null;
+        if ($splitsRaw !== null && $splitsRaw !== '') {
+            $decoded = json_decode((string)$splitsRaw, true);
+            if (! is_array($decoded)) {
+                return json(['ret' => 0, 'msg' => '分摊数据格式无效']);
+            }
+            $splits = $decoded;
+        }
+
+        if ($splits !== null && count($splits) > 0) {
+            return $this->processAddItemWithSplits($request, $partyId, $description, $unit, $splits);
+        }
+
         $users = json_decode($request->param('users'));
-        $partyId = $request->param('party_id');
         try {
             validate(\app\validate\Item::class)->check([
-                'description' => $request->param('description'),
+                'description' => $description,
                 'amount' => $request->param('amount'),
                 'users' => $users,
-                'unit' => $request->param('unit'),
+                'unit' => $unit,
                 'party_id' => $partyId,
             ]);
         } catch (ValidateException $e) {
             return json(['ret' => 0, 'msg' => $e->getError()]);
         }
 
-        // 验证派对权限
-        if ($partyId) {
-            $userId = $this->currentUserId();
-            $isMember = Db::table('party_member')
-                ->where('party_id', $partyId)
-                ->where('user_id', $userId)
-                ->count();
-            if (! $isMember) {
-                return json(['ret' => 0, 'msg' => '您不是该派对的成员']);
-            }
-
-            // 验证提交的用户ID是否都属于该派对
-            if (! empty($users)) {
-                $partyMemberIds = Db::table('party_member')
-                    ->where('party_id', $partyId)
-                    ->column('user_id');
-
-                foreach ($users as $user) {
-                    if (! in_array((int)$user, $partyMemberIds)) {
-                        return json(['ret' => 0, 'msg' => "用户ID {$user} 不属于该派对"]);
-                    }
-                }
-            }
+        $memberCheck = $this->assertPartyMembersForAdd($partyId, $users);
+        if ($memberCheck !== null) {
+            return $memberCheck;
         }
 
-        // 获取派对货币信息
-        $party = null;
-        if ($partyId) {
-            $party = Db::table('party')->where('id', $partyId)->find();
+        $currencyCtx = $this->resolvePartyCurrencyContext($partyId, $unit);
+        if ($currencyCtx instanceof Json) {
+            return $currencyCtx;
         }
 
-        if ($party) {
-            if (! empty($party['archived_at'])) {
-                return json(['ret' => 0, 'msg' => '该派对已归档，无法添加收款项']);
-            }
-            // 使用派对特定的货币
-            $baseCurrency = $party['base_currency'];
-            $supportedCurrencies = json_decode($party['supported_currencies'], true) ? : [$baseCurrency];
-
-            // 验证货币是否被派对支持
-            if (! in_array($request->param('unit'), $supportedCurrencies)) {
-                return json(['ret' => 0, 'msg' => '该派对不支持此货币']);
-            }
-
-            $exchangeRate = app()->currencyService->getPartyExchangeRate($baseCurrency, $supportedCurrencies);
-        } else {
-            // 如果没有派对，使用默认货币（CNY）
-            $baseCurrency = 'cny';
-            $exchangeRate = ['cny' => 1];
+        [$baseCurrency, $exchangeRate] = $currencyCtx;
+        $amount = $this->convertAmountToBase(
+            $unit,
+            $baseCurrency,
+            $exchangeRate,
+            (string)$request->param('amount')
+        );
+        if ($amount === null) {
+            return json(['ret' => 0, 'msg' => '无法获取该货币的汇率信息']);
         }
 
-        if ($request->param('unit') === $baseCurrency) {
-            $amount = $request->param('amount');
-        } else {
-            if (! isset($exchangeRate[$request->param('unit')])) {
-                return json(['ret' => 0, 'msg' => '无法获取该货币的汇率信息']);
-            }
-            $amount = bcdiv((string)$request->param('amount'), (string)$exchangeRate[$request->param('unit')], 2);
-        }
-
+        $initiatorId = $this->currentUserId();
         foreach ($users as $user) {
             app()->userService->addItem(
                 (int)$user,
-                $request->param('description'),
+                $description,
                 (float)$amount,
-                $this->currentUserId(),
-                (int)$partyId
+                $initiatorId,
+                $partyId
             );
         }
 
-        return json(['ret' => 1, 'msg' => '添加成功']);
+        return json(['ret' => 1, 'msg' => '添加成功', 'data' => ['count' => count($users)]]);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $splits
+     */
+    private function processAddItemWithSplits(
+        Request $request,
+        int $partyId,
+        string $description,
+        string $unit,
+        array $splits
+    ): Json {
+        if ($description === '') {
+            return json(['ret' => 0, 'msg' => '描述不能为空']);
+        }
+        if ($unit === '') {
+            return json(['ret' => 0, 'msg' => '单位不能为空']);
+        }
+        if ($partyId <= 0) {
+            return json(['ret' => 0, 'msg' => '请选择派对']);
+        }
+
+        $userIds = [];
+        $normalized = [];
+        foreach ($splits as $i => $row) {
+            if (! is_array($row)) {
+                return json(['ret' => 0, 'msg' => '分摊数据格式无效']);
+            }
+            $userId = isset($row['user_id']) ? (int)$row['user_id'] : 0;
+            $amountRaw = $row['amount'] ?? null;
+            if ($userId <= 0) {
+                return json(['ret' => 0, 'msg' => '分摊第 ' . ($i + 1) . ' 项用户无效']);
+            }
+            if ($amountRaw === null || $amountRaw === '' || ! is_numeric($amountRaw)) {
+                return json(['ret' => 0, 'msg' => '分摊第 ' . ($i + 1) . ' 项金额无效']);
+            }
+            $amountStr = (string)$amountRaw;
+            if (bccomp($amountStr, '0', 2) <= 0) {
+                return json(['ret' => 0, 'msg' => '分摊第 ' . ($i + 1) . ' 项金额必须大于 0']);
+            }
+            if (in_array($userId, $userIds, true)) {
+                return json(['ret' => 0, 'msg' => '同一用户不能重复分摊']);
+            }
+            $userIds[] = $userId;
+            $normalized[] = ['user_id' => $userId, 'amount' => $amountStr];
+        }
+
+        if ($normalized === []) {
+            return json(['ret' => 0, 'msg' => '请至少为一名成员填写金额']);
+        }
+
+        $memberCheck = $this->assertPartyMembersForAdd($partyId, $userIds);
+        if ($memberCheck !== null) {
+            return $memberCheck;
+        }
+
+        $currencyCtx = $this->resolvePartyCurrencyContext($partyId, $unit);
+        if ($currencyCtx instanceof Json) {
+            return $currencyCtx;
+        }
+
+        [$baseCurrency, $exchangeRate] = $currencyCtx;
+        $initiatorId = $this->currentUserId();
+
+        foreach ($normalized as $row) {
+            $amount = $this->convertAmountToBase($unit, $baseCurrency, $exchangeRate, $row['amount']);
+            if ($amount === null) {
+                return json(['ret' => 0, 'msg' => '无法获取该货币的汇率信息']);
+            }
+            app()->userService->addItem(
+                $row['user_id'],
+                $description,
+                (float)$amount,
+                $initiatorId,
+                $partyId
+            );
+        }
+
+        $count = count($normalized);
+
+        return json(['ret' => 1, 'msg' => '添加成功', 'data' => ['count' => $count]]);
+    }
+
+    /**
+     * @param array<int|string>|null $userIds
+     */
+    private function assertPartyMembersForAdd(int $partyId, $userIds): ?Json
+    {
+        if ($partyId <= 0) {
+            return json(['ret' => 0, 'msg' => '请选择派对']);
+        }
+
+        $userId = $this->currentUserId();
+        $isMember = Db::table('party_member')
+            ->where('party_id', $partyId)
+            ->where('user_id', $userId)
+            ->count();
+        if (! $isMember) {
+            return json(['ret' => 0, 'msg' => '您不是该派对的成员']);
+        }
+
+        if (empty($userIds)) {
+            return json(['ret' => 0, 'msg' => '用户不能为空']);
+        }
+
+        $partyMemberIds = Db::table('party_member')
+            ->where('party_id', $partyId)
+            ->column('user_id');
+
+        foreach ($userIds as $user) {
+            if (! in_array((int)$user, $partyMemberIds, true)) {
+                return json(['ret' => 0, 'msg' => "用户ID {$user} 不属于该派对"]);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return Json|array{0: string, 1: array<string, float|string>}
+     */
+    private function resolvePartyCurrencyContext(int $partyId, string $unit)
+    {
+        $party = Db::table('party')->where('id', $partyId)->find();
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '派对不存在']);
+        }
+
+        if (! empty($party['archived_at'])) {
+            return json(['ret' => 0, 'msg' => '该派对已归档，无法添加收款项']);
+        }
+
+        $baseCurrency = $party['base_currency'];
+        $supportedCurrencies = json_decode($party['supported_currencies'], true) ? : [$baseCurrency];
+
+        if (! in_array($unit, $supportedCurrencies, true)) {
+            return json(['ret' => 0, 'msg' => '该派对不支持此货币']);
+        }
+
+        $exchangeRate = app()->currencyService->getPartyExchangeRate($baseCurrency, $supportedCurrencies);
+
+        return [$baseCurrency, $exchangeRate];
+    }
+
+    /**
+     * @param array<string, float|string> $exchangeRate
+     */
+    private function convertAmountToBase(
+        string $unit,
+        string $baseCurrency,
+        array $exchangeRate,
+        string $amount
+    ): ?string {
+        if ($unit === $baseCurrency) {
+            return $amount;
+        }
+        if (! isset($exchangeRate[$unit])) {
+            return null;
+        }
+
+        return bcdiv($amount, (string)$exchangeRate[$unit], 2);
     }
 
     public function addItem(Request $request): Json
@@ -238,8 +377,67 @@ class UserController extends BaseController
             $stats['receivable_percentage'] = '0.0';
         }
 
-        // 获取最近的5个派对
-        $recentParties = array_slice($parties, 0, 5);
+        $recentParties = Db::table('party')
+            ->join('party_member', 'party.id = party_member.party_id')
+            ->where('party_member.user_id', $userId)
+            ->field('party.id, party.name, party.description')
+            ->order('party.updated_at', 'desc')
+            ->limit(5)
+            ->select()
+            ->toArray();
+
+        $activityRows = Db::table('item')
+            ->alias('item')
+            ->join('party party', 'item.party_id = party.id')
+            ->join('party_member pm', 'item.party_id = pm.party_id')
+            ->join('user debtor', 'item.userid = debtor.id')
+            ->join('user initiator_user', 'item.initiator = initiator_user.id')
+            ->where('pm.user_id', $userId)
+            ->where(function ($query) use ($userId) {
+                $query->where('item.initiator', $userId)->whereOr('item.userid', $userId);
+            })
+            ->whereRaw('NOT (item.initiator = ? AND item.userid = ?)', [$userId, $userId])
+            ->field([
+                'item.id',
+                'item.description',
+                'item.amount',
+                'item.paid',
+                'item.created_at',
+                'item.initiator',
+                'item.userid',
+                'party.id as party_id',
+                'party.name as party_name',
+                'party.base_currency',
+                'debtor.username as debtor_name',
+                'initiator_user.username as initiator_name',
+            ])
+            ->order('item.created_at', 'desc')
+            ->limit(20)
+            ->select()
+            ->toArray();
+
+        $currencySymbols = [];
+        $recentActivity = [];
+        foreach ($activityRows as $row) {
+            $code = $row['base_currency'] ?? 'cny';
+            if (! isset($currencySymbols[$code])) {
+                $currency = Currency::getByCode($code);
+                $currencySymbols[$code] = $currency ? $currency->symbol : '¥';
+            }
+            $isInitiated = (int)$row['initiator'] === $userId;
+            $recentActivity[] = [
+                'id' => (int)$row['id'],
+                'description' => $row['description'],
+                'amount' => $row['amount'],
+                'paid' => (int)$row['paid'],
+                'created_at' => $row['created_at'],
+                'party_id' => (int)$row['party_id'],
+                'party_name' => $row['party_name'],
+                'currency_symbol' => $currencySymbols[$code],
+                'type' => $isInitiated ? 'initiated' : 'assigned',
+                'counterparty_name' => $isInitiated ? $row['debtor_name'] : $row['initiator_name'],
+            ];
+        }
 
         return json([
             'ret' => 1,
@@ -248,6 +446,7 @@ class UserController extends BaseController
                 'parties' => $parties,
                 'stats' => $stats,
                 'recentParties' => $recentParties,
+                'recentActivity' => $recentActivity,
                 'currencySymbol' => $currencySymbol,
                 'currencyCode' => $currencyCode,
             ],

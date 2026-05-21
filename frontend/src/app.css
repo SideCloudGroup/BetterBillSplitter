@@ -38,6 +38,34 @@ body {
     margin-bottom: 20px;
 }
 
+.bbs-home-hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+}
+
+.bbs-home-mascot {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    flex-shrink: 0;
+    user-select: none;
+    pointer-events: none;
+}
+
+@media (max-width: 575px) {
+    .bbs-home-mascot {
+        width: 48px;
+        height: 48px;
+    }
+
+    .bbs-home-hero {
+        gap: 8px 12px;
+    }
+}
+
 .bbs-page--center .bbs-page-header-extra {
     display: flex;
     flex-wrap: wrap;
