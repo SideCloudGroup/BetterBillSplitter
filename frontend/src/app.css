@@ -211,6 +211,10 @@ body {
     min-width: 120px;
 }
 
+.bbs-party-filter {
+    margin-bottom: 16px;
+}
+
 /* 派对平铺选择（添加收款等） */
 .bbs-party-picker {
     width: 100%;

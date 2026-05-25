@@ -35,7 +35,7 @@ export function RegisterPage() {
     const data = (await res.json()) as { ret?: number; msg?: string };
     if (data.ret !== 1) {
       setErr(data.msg || '注册失败');
-      setCapKey((k) => k + 1);
+      if (data.ret === 0) setCapKey((k) => k + 1);
       return;
     }
     message.success(data.msg || '注册成功');
@@ -68,7 +68,7 @@ export function RegisterPage() {
         >
           <Input.Password placeholder="再次输入密码"/>
         </Form.Item>
-        <AuthCaptcha slotKey={`reg-${capKey}`}/>
+        <AuthCaptcha slotKey="register" refreshSignal={capKey}/>
         <Form.Item>
           <Button type="primary" htmlType="submit" block>
             注册

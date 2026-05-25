@@ -51,7 +51,7 @@ export function LoginPage() {
     };
     if (data.ret !== 1) {
       setErr(data.msg || '登录失败');
-      setCapKey((k) => k + 1);
+      if (data.ret === 0) setCapKey((k) => k + 1);
       return;
     }
     if (data.mfa_required && data.mfa_ticket) {
@@ -112,7 +112,7 @@ export function LoginPage() {
         <Form.Item name="password" label="密码" rules={[{required: true}]}>
           <Input.Password autoComplete="current-password" placeholder="请输入密码"/>
         </Form.Item>
-        <AuthCaptcha slotKey={`login-${capKey}`}/>
+        <AuthCaptcha slotKey="login" refreshSignal={capKey}/>
         <Form.Item style={{marginBottom: 12}}>
           <Button type="primary" htmlType="submit" block>
             登录

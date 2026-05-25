@@ -38,7 +38,7 @@ const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
 const HCAPTCHA_SCRIPT = 'https://js.hcaptcha.com/1/api.js';
 const CAP_SCRIPT = 'https://cdn.jsdelivr.net/npm/@cap.js/widget';
 
-type Props = { slotKey: string };
+type Props = { slotKey: string; refreshSignal?: number };
 
 function CaptchaWrap({children}: { children: ReactNode }) {
   return <div className="bbs-auth-captcha">{children}</div>;
@@ -57,14 +57,17 @@ function configError(driver: string, detail: string) {
   );
 }
 
-export function AuthCaptcha({slotKey}: Props) {
+export function AuthCaptcha({slotKey, refreshSignal = 0}: Props) {
   const [boot, setBoot] = useState<PublicBootstrap | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [numericTick, setNumericTick] = useState(0);
+  const [widgetEpoch, setWidgetEpoch] = useState(0);
   const turnHost = useRef<HTMLDivElement>(null);
   const hcapHost = useRef<HTMLDivElement>(null);
   const capHost = useRef<HTMLDivElement>(null);
   const capWidgetRef = useRef<CapWidgetElement | null>(null);
+  const turnInstanceRef = useRef<string | null>(null);
+  const hcapInstanceRef = useRef<string | null>(null);
   const turnWidgetId = useRef(`bbs-turnstile-${slotKey}`);
   const hcapWidgetId = useRef(`bbs-hcaptcha-${slotKey}`);
 
@@ -72,6 +75,42 @@ export function AuthCaptcha({slotKey}: Props) {
     setNumericTick(Date.now());
     setExtra({});
   }, []);
+
+  const refreshCaptcha = useCallback(() => {
+    setExtra({});
+    if (!boot) return;
+    const driver = boot.driver || 'none';
+    if (driver === 'numeric') {
+      setNumericTick(Date.now());
+      return;
+    }
+    if (driver === 'turnstile') {
+      const w = (window as { turnstile?: { reset: (id: string) => void } }).turnstile;
+      if (turnInstanceRef.current && w?.reset) {
+        w.reset(turnInstanceRef.current);
+        return;
+      }
+    }
+    if (driver === 'hcaptcha') {
+      const w = (window as { hcaptcha?: { reset: (id: string) => void } }).hcaptcha;
+      if (hcapInstanceRef.current && w?.reset) {
+        w.reset(hcapInstanceRef.current);
+        return;
+      }
+    }
+    if (driver === 'cap') {
+      if (capWidgetRef.current?.reset) {
+        capWidgetRef.current.reset();
+        return;
+      }
+    }
+    setWidgetEpoch((n) => n + 1);
+  }, [boot]);
+
+  useEffect(() => {
+    if (refreshSignal < 1 || !boot) return;
+    refreshCaptcha();
+  }, [refreshSignal, refreshCaptcha, boot]);
 
   useEffect(() => {
     captchaExtra = {};
@@ -133,7 +172,7 @@ export function AuthCaptcha({slotKey}: Props) {
         turnHost.current.appendChild(el);
 
         if (w.turnstile?.render) {
-          w.turnstile.render(el, {
+          turnInstanceRef.current = w.turnstile.render(el, {
             sitekey: boot.site_key,
             theme: 'light',
             callback: (token: string) => setExtra({'cf-turnstile-response': token}),
@@ -149,9 +188,10 @@ export function AuthCaptcha({slotKey}: Props) {
       cancelled = true;
       delete (window as Record<string, unknown>)[cbName];
       delete (window as Record<string, unknown>)[`${cbName}_expired`];
+      turnInstanceRef.current = null;
       if (turnHost.current) turnHost.current.innerHTML = '';
     };
-  }, [boot, slotKey]);
+  }, [boot, slotKey, widgetEpoch]);
 
   useEffect(() => {
     if (!boot) return;
@@ -191,7 +231,7 @@ export function AuthCaptcha({slotKey}: Props) {
         hcapHost.current.appendChild(el);
 
         if (w.hcaptcha?.render) {
-          w.hcaptcha.render(el, {
+          hcapInstanceRef.current = w.hcaptcha.render(el, {
             sitekey: boot.site_key,
             callback: (token: string) => setExtra({'h-captcha-response': token}),
             'expired-callback': () => setExtra({}),
@@ -206,9 +246,10 @@ export function AuthCaptcha({slotKey}: Props) {
       cancelled = true;
       delete (window as Record<string, unknown>)[cbName];
       delete (window as Record<string, unknown>)[`${cbName}_expired`];
+      hcapInstanceRef.current = null;
       if (hcapHost.current) hcapHost.current.innerHTML = '';
     };
-  }, [boot, slotKey]);
+  }, [boot, slotKey, widgetEpoch]);
 
   useEffect(() => {
     if (!boot) return;
@@ -250,7 +291,7 @@ export function AuthCaptcha({slotKey}: Props) {
       capWidgetRef.current = null;
       if (capHost.current) capHost.current.innerHTML = '';
     };
-  }, [boot, slotKey]);
+  }, [boot, slotKey, widgetEpoch]);
 
   if (!boot) return null;
   const driver = boot.driver || 'none';
@@ -283,6 +324,7 @@ export function AuthCaptcha({slotKey}: Props) {
           </Button>
         </div>
         <Input
+          key={numericTick}
           className="bbs-auth-captcha__input"
           name="captcha"
           placeholder="请输入图中字符"

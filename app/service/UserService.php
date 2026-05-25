@@ -191,7 +191,7 @@ class UserService extends Service
             switch (getSetting('captcha_driver', 'none')) {
                 case 'numeric':
                 {
-                    return captcha_check($antixss->xss_clean($request->param('captcha')));
+                    return captcha_check($antixss->xss_clean($request->param('captcha', '')));
                 }
                 case 'turnstile':
                 {
