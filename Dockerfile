@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/tmp/composer-cache \
 # -----------------------------------------------------------------------------
 # Stage 3: 单容器 — Caddy + PHP-FPM
 # -----------------------------------------------------------------------------
-FROM php:8.3-fpm-alpine AS web
+FROM php:8.4-fpm-alpine AS web
 
 RUN set -eux; \
     apk add --no-cache --virtual .build-deps \

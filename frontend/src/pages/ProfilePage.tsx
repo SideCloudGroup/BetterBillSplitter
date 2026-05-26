@@ -94,6 +94,7 @@ export function ProfilePage() {
     token?: string;
   } | null>(null);
   const [fidoModal, setFidoModal] = useState(false);
+  const [passkeyModal, setPasskeyModal] = useState(false);
   const [pwdSaving, setPwdSaving] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [pwdForm] = Form.useForm();
@@ -425,7 +426,7 @@ export function ProfilePage() {
                     type="primary"
                     size="small"
                     icon={<PlusOutlined/>}
-                    onClick={() => void regWebauthn('/user/webauthn_reg').catch((e) => message.error(String(e)))}
+                    onClick={() => setPasskeyModal(true)}
                   >
                     注册新密钥
                   </Button>
@@ -451,6 +452,30 @@ export function ProfilePage() {
           </SurfaceCard>
         </Col>
       </Row>
+
+      <Modal
+        title="注册通行密钥 (Passkey)"
+        open={passkeyModal}
+        onCancel={() => setPasskeyModal(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form
+          layout="vertical"
+          onFinish={(v) =>
+            void regWebauthn('/user/webauthn_reg', {name: v.name || ''})
+              .then(() => setPasskeyModal(false))
+              .catch((e) => message.error(String(e)))
+          }
+        >
+          <Form.Item name="name" label="设备名称（可选）">
+            <Input placeholder="例如：MacBook / iPhone"/>
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block icon={<KeyOutlined/>}>
+            继续并完成注册
+          </Button>
+        </Form>
+      </Modal>
 
       <Modal
         title="注册 FIDO2 安全密钥"

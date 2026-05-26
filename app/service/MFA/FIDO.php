@@ -51,11 +51,15 @@ class FIDO
 
     public static function fidoRegisterHandle(User $user, array $data, string $challengeId): array
     {
+        $deviceName = trim((string) ($data['name'] ?? ''));
+        $credentialPayload = $data;
+        unset($credentialPayload['challenge_id'], $credentialPayload['name']);
+
         $serializer = WebAuthn::getSerializer();
 
         try {
             $publicKeyCredential = $serializer->deserialize(
-                json_encode($data),
+                json_encode($credentialPayload),
                 PublicKeyCredential::class,
                 'json'
             );
@@ -95,7 +99,7 @@ class FIDO
         $mfaCredential->body = $jsonStr;
         $mfaCredential->created_at = date('Y-m-d H:i:s');
         $mfaCredential->used_at = null;
-        $mfaCredential->name = $data['name'] === '' ? null : $data['name'];
+        $mfaCredential->name = $deviceName === '' ? null : $deviceName;
         $mfaCredential->type = 'fido';
         $mfaCredential->save();
         Cache::delete('fido_register:' . $challengeId);

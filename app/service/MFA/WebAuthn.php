@@ -27,12 +27,12 @@ use Webauthn\AuthenticatorAttestationResponseValidator;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
 use Webauthn\CredentialRecord;
-use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 use Webauthn\PublicKeyCredentialParameters;
 use Webauthn\PublicKeyCredentialRequestOptions;
 use Webauthn\PublicKeyCredentialRpEntity;
+use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use Webauthn\PublicKeyCredentialUserEntity;
 
 
@@ -116,10 +116,14 @@ class WebAuthn
 
     public static function registerHandle(User $user, array $data, string $challengeId): array
     {
+        $deviceName = trim((string) ($data['name'] ?? ''));
+        $credentialPayload = $data;
+        unset($credentialPayload['challenge_id'], $credentialPayload['name']);
+
         $serializer = self::getSerializer();
         try {
             $publicKeyCredential = $serializer->deserialize(
-                json_encode($data),
+                json_encode($credentialPayload),
                 PublicKeyCredential::class,
                 'json'
             );
@@ -160,7 +164,7 @@ class WebAuthn
         $webauthn->body = $jsonStr;
         $webauthn->created_at = date('Y-m-d H:i:s');
         $webauthn->used_at = null;
-        $webauthn->name = $data['name'] === '' ? null : $data['name'];
+        $webauthn->name = $deviceName === '' ? null : $deviceName;
         $webauthn->type = 'passkey';
         $webauthn->save();
         Cache::delete('webauthn_register:' . $challengeId);
@@ -206,8 +210,11 @@ class WebAuthn
 
     public static function challengeHandle(array $data, string $challengeId): array
     {
+        $credentialPayload = $data;
+        unset($credentialPayload['challenge_id']);
+
         $serializer = self::getSerializer();
-        $publicKeyCredential = $serializer->deserialize(json_encode($data), PublicKeyCredential::class, 'json');
+        $publicKeyCredential = $serializer->deserialize(json_encode($credentialPayload), PublicKeyCredential::class, 'json');
         if (! $publicKeyCredential->response instanceof AuthenticatorAssertionResponse) {
             return ['ret' => 0, 'msg' => '验证失败'];
         }
