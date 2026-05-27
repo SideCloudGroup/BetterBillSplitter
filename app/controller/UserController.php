@@ -658,6 +658,39 @@ class UserController extends BaseController
         return json(['ret' => 1, 'msg' => '更新成功']);
     }
 
+    /**
+     * 删除单条账目（仅派对所有者，未归档）
+     */
+    public function deleteItem(Request $request, int $id): Json
+    {
+        $currentUserId = $this->currentUserId();
+
+        $item = (new Item())->where('id', $id)->findOrEmpty();
+        if ($item->isEmpty()) {
+            return json(['ret' => 0, 'msg' => '账目不存在'], 404);
+        }
+
+        $party = Party::find($item->party_id);
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '账目所属派对不存在'], 404);
+        }
+
+        if ((int)$party->owner_id !== $currentUserId) {
+            return json(['ret' => 0, 'msg' => '只有派对所有者可以删除账目'], 403);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法删除账目']);
+        }
+
+        try {
+            $item->delete();
+            return json(['ret' => 1, 'msg' => '账目已删除']);
+        } catch (Exception $e) {
+            return json(['ret' => 0, 'msg' => '删除失败：' . $e->getMessage()]);
+        }
+    }
+
     public function logout(Request $request): Json
     {
         app()->userService->logout();
