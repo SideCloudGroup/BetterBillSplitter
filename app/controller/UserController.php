@@ -628,6 +628,106 @@ class UserController extends BaseController
         ]);
     }
 
+    public function partyItemList(Request $request, int $partyId): Json
+    {
+        $userId = $this->currentUserId();
+
+        $isMember = Db::table('party_member')
+            ->where('party_id', $partyId)
+            ->where('user_id', $userId)
+            ->count();
+        if (! $isMember) {
+            return json(['ret' => 0, 'msg' => '未找到派对或无权访问'], 404);
+        }
+
+        $partyModel = Party::find($partyId);
+        if (! $partyModel) {
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
+        }
+
+        $currency = Currency::getByCode($partyModel->base_currency);
+        $currencySymbol = $currency ? $currency->symbol : '¥';
+        $isOwner = $partyModel->isOwner($userId);
+        $isArchived = $partyModel->isArchived();
+
+        $rawItems = Db::table('item')
+            ->alias('i')
+            ->join('user payer', 'i.userid = payer.id')
+            ->join('user initiator_u', 'i.initiator = initiator_u.id')
+            ->where('i.party_id', $partyId)
+            ->field('i.id, i.description, i.amount, i.paid, i.created_at, i.userid, i.initiator,
+                     payer.username as payer_name, initiator_u.username as initiator_name')
+            ->order('i.created_at', 'desc')
+            ->select()
+            ->toArray();
+
+        $totalAmount = '0';
+        $unpaidAmount = '0';
+        $myInitiatedAmount = '0';
+        $myInitiatedUnpaid = '0';
+        $myPaymentAmount = '0';
+        $unpaidCount = 0;
+        $myInitiatedCount = 0;
+        $myPaymentCount = 0;
+
+        $items = [];
+        foreach ($rawItems as $row) {
+            $isMyInitiation = (int)$row['initiator'] === $userId;
+            $isMyPayment = (int)$row['userid'] === $userId;
+            $paid = (int)$row['paid'] === 1;
+            $amt = (string)$row['amount'];
+
+            $totalAmount = bcadd($totalAmount, $amt, 2);
+            if (! $paid) {
+                $unpaidAmount = bcadd($unpaidAmount, $amt, 2);
+                $unpaidCount++;
+            }
+            if ($isMyInitiation) {
+                $myInitiatedAmount = bcadd($myInitiatedAmount, $amt, 2);
+                $myInitiatedCount++;
+                if (! $paid) {
+                    $myInitiatedUnpaid = bcadd($myInitiatedUnpaid, $amt, 2);
+                }
+            }
+            if ($isMyPayment) {
+                if (! $paid) {
+                    $myPaymentAmount = bcadd($myPaymentAmount, $amt, 2);
+                }
+                $myPaymentCount++;
+            }
+
+            $row['is_my_initiation'] = $isMyInitiation;
+            $row['is_my_payment'] = $isMyPayment;
+            $items[] = $row;
+        }
+
+        return json([
+            'ret' => 1,
+            'data' => [
+                'party' => [
+                    'id' => $partyModel->id,
+                    'name' => $partyModel->name,
+                    'description' => $partyModel->description,
+                    'currency_symbol' => $currencySymbol,
+                    'is_archived' => $isArchived,
+                ],
+                'isOwner' => $isOwner,
+                'items' => $items,
+                'stats' => [
+                    'total' => count($items),
+                    'unpaid' => $unpaidCount,
+                    'my_initiated' => $myInitiatedCount,
+                    'my_payment' => $myPaymentCount,
+                    'total_amount' => $totalAmount,
+                    'unpaid_amount' => $unpaidAmount,
+                    'my_initiated_amount' => $myInitiatedAmount,
+                    'my_initiated_unpaid' => $myInitiatedUnpaid,
+                    'my_payment_amount' => $myPaymentAmount,
+                ],
+            ],
+        ]);
+    }
+
     public function updateItemStatus(Request $request): Json
     {
         $item = (new Item())->where('id', $request->param('id'))->where(

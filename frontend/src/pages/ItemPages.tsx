@@ -1,8 +1,8 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
-import {Alert, Button, message} from 'antd';
-import {AccountBookOutlined, PlusOutlined} from '@ant-design/icons';
-import {apiJson, apiPostForm} from '@/api/client';
+import {Alert, Badge, Button, Popconfirm, Space, Tabs, message} from 'antd';
+import {AccountBookOutlined, DeleteOutlined, PlusOutlined} from '@ant-design/icons';
+import {apiDelete, apiJson, apiPostForm} from '@/api/client';
 import {formatMoney} from '@/lib/formatMoney';
 import {EmptyState, EntityCard, LedgerList, PageShell, SectionTitle, SummaryStrip, SurfaceCard,} from '@/components/ui';
 
@@ -87,13 +87,30 @@ export function ItemListPage() {
   );
 }
 
-type Item = {
+type FilterKey = 'all' | 'unpaid' | 'my_initiated' | 'my_payment';
+
+type PartyItemStats = {
+  total: number;
+  unpaid: number;
+  my_initiated: number;
+  my_payment: number;
+  total_amount: string;
+  unpaid_amount: string;
+  my_initiated_amount: string;
+  my_initiated_unpaid: string;
+  my_payment_amount: string;
+};
+
+type PartyItem = {
   id: number;
-  username: string;
   description: string;
   amount: string | number;
   paid: number;
   created_at?: string;
+  payer_name: string;
+  initiator_name: string;
+  is_my_initiation: boolean;
+  is_my_payment: boolean;
 };
 
 export function ItemPartyPage() {
@@ -107,8 +124,10 @@ export function ItemPartyPage() {
     currency_symbol?: string;
     is_archived?: boolean;
   } | null>(null);
-  const [items, setItems] = useState<Item[]>([]);
-  const [unpaid, setUnpaid] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
+  const [items, setItems] = useState<PartyItem[]>([]);
+  const [stats, setStats] = useState<PartyItemStats | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
 
   const load = async () => {
     setLoading(true);
@@ -119,17 +138,19 @@ export function ItemPartyPage() {
         msg?: string;
         data?: {
           party?: typeof party;
-          items?: Item[];
-          unpaidAmount?: string;
+          isOwner?: boolean;
+          items?: PartyItem[];
+          stats?: PartyItemStats;
         };
-      }>(`/user/item/party/${id}`);
+      }>(`/user/party/${id}/items`);
       if (data.ret !== 1) {
         setErr(data.msg || '加载失败');
         return;
       }
       setParty(data.data?.party || null);
+      setIsOwner(data.data?.isOwner ?? false);
       setItems(data.data?.items || []);
-      setUnpaid(String(data.data?.unpaidAmount ?? ''));
+      setStats(data.data?.stats || null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -147,14 +168,88 @@ export function ItemPartyPage() {
     await load();
   };
 
+  const doDelete = async (itemId: number) => {
+    await apiDelete(`/user/item/${itemId}`);
+    message.success('已删除');
+    await load();
+  };
+
   const sym = party?.currency_symbol || '¥';
   const archived = party?.is_archived === true;
 
+  const filteredItems = useMemo(() => {
+    switch (filter) {
+      case 'unpaid': return items.filter((it) => Number(it.paid) === 0);
+      case 'my_initiated': return items.filter((it) => it.is_my_initiation);
+      case 'my_payment': return items.filter((it) => it.is_my_payment);
+      default: return items;
+    }
+  }, [items, filter]);
+
+  const tabItems = [
+    {
+      key: 'all' as FilterKey,
+      label: <span>全部&nbsp;<Badge count={stats?.total ?? 0} size="small" showZero color="#8c8c8c"/></span>,
+    },
+    {
+      key: 'unpaid' as FilterKey,
+      label: <span>未支付&nbsp;<Badge count={stats?.unpaid ?? 0} size="small" showZero color="#faad14"/></span>,
+    },
+    {
+      key: 'my_initiated' as FilterKey,
+      label: <span>我发起的&nbsp;<Badge count={stats?.my_initiated ?? 0} size="small" showZero color="#1677ff"/></span>,
+    },
+    {
+      key: 'my_payment' as FilterKey,
+      label: <span>我需支付&nbsp;<Badge count={stats?.my_payment ?? 0} size="small" showZero color="#7c3aed"/></span>,
+    },
+  ];
+
+  const summaryStrips = (() => {
+    if (!stats) return null;
+    switch (filter) {
+      case 'all':
+        return (
+          <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16}}>
+            <div style={{flex: 1, minWidth: 140}}>
+              <SummaryStrip label="账目总额" value={formatMoney(sym, stats.total_amount)} tone="primary"/>
+            </div>
+            <div style={{flex: 1, minWidth: 140}}>
+              <SummaryStrip label="其中未付" value={formatMoney(sym, stats.unpaid_amount)} tone="warning"/>
+            </div>
+          </div>
+        );
+      case 'unpaid':
+        return (
+          <div style={{marginBottom: 16}}>
+            <SummaryStrip label="未付总额" value={formatMoney(sym, stats.unpaid_amount)} tone="warning"/>
+          </div>
+        );
+      case 'my_initiated':
+        return (
+          <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16}}>
+            <div style={{flex: 1, minWidth: 140}}>
+              <SummaryStrip label="发起总额" value={formatMoney(sym, stats.my_initiated_amount)} tone="primary"/>
+            </div>
+            <div style={{flex: 1, minWidth: 140}}>
+              <SummaryStrip label="未收回" value={formatMoney(sym, stats.my_initiated_unpaid)} tone="success"/>
+            </div>
+          </div>
+        );
+      case 'my_payment':
+        return (
+          <div style={{marginBottom: 16}}>
+            <SummaryStrip label="我待付合计" value={formatMoney(sym, stats.my_payment_amount)} tone="warning"/>
+          </div>
+        );
+    }
+  })();
+
   return (
     <PageShell
-      title={`收款 — ${party?.name || ''}`}
-      subtitle={party?.description || '管理本派对下的收款条目'}
-      back={{to: '/items'}}
+      title={`账目 — ${party?.name || ''}`}
+      subtitle={party?.description || '查看本派对全部账目'}
+      back={{to: `/parties/${id}`}}
       loading={loading}
       error={err}
       maxWidth={800}
@@ -171,29 +266,63 @@ export function ItemPartyPage() {
       {archived ? (
         <Alert type="warning" message="该派对已归档，无法修改支付状态。" showIcon style={{marginBottom: 16}}/>
       ) : null}
-      <SummaryStrip label="未收回款合计" value={`${sym}${unpaid}`} tone="success"/>
-      <SurfaceCard title={<SectionTitle icon={<AccountBookOutlined/>}>收款条目</SectionTitle>}>
+
+      <Tabs
+        activeKey={filter}
+        onChange={(key) => setFilter(key as FilterKey)}
+        items={tabItems}
+        style={{marginBottom: 0}}
+        tabBarStyle={{marginBottom: 0}}
+      />
+
+      <SurfaceCard style={{borderTopLeftRadius: 0, borderTopRightRadius: 0}}>
+        {summaryStrips}
         <LedgerList
-          rows={items.map((it) => {
+          rows={filteredItems.map((it) => {
             const paid = Number(it.paid) === 1;
+            const metaText = filter === 'my_initiated'
+              ? `支付人 ${it.payer_name}`
+              : filter === 'my_payment'
+                ? `发起人 ${it.initiator_name}`
+                : `支付人 ${it.payer_name} · 发起人 ${it.initiator_name}`;
+
+            const markBtn = it.is_my_initiation && !archived ? (
+              paid ? (
+                <Button size="small" onClick={() => void mark(it.id, '0')}>标为未付</Button>
+              ) : (
+                <Button type="primary" size="small" onClick={() => void mark(it.id, '1')}>标为已付</Button>
+              )
+            ) : null;
+
+            const deleteBtn = isOwner && !archived ? (
+              <Popconfirm
+                title="确认删除此条账目？"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{danger: true}}
+                onConfirm={() => void doDelete(it.id)}
+              >
+                <Button danger size="small" icon={<DeleteOutlined/>}/>
+              </Popconfirm>
+            ) : null;
+
+            const action = (markBtn || deleteBtn) ? (
+              <Space size={6}>
+                {markBtn}
+                {deleteBtn}
+              </Space>
+            ) : undefined;
+
             return {
               id: it.id,
               title: it.description || '（无描述）',
-              meta: `支付人 ${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
+              meta: `${metaText}${it.created_at ? ` · ${it.created_at}` : ''}`,
               amount: formatMoney(sym, it.amount),
               paid,
-              action: archived ? undefined : paid ? (
-                <Button size="small" onClick={() => void mark(it.id, '0')}>
-                  标为未付
-                </Button>
-              ) : (
-                <Button type="primary" size="small" onClick={() => void mark(it.id, '1')}>
-                  标为已付
-                </Button>
-              ),
+              action,
             };
           })}
-          empty={<EmptyState description="暂无收款条目"/>}
+          empty={<EmptyState description="暂无符合条件的账目"/>}
         />
       </SurfaceCard>
     </PageShell>

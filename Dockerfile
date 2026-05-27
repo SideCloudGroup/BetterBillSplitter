@@ -37,14 +37,7 @@ RUN --mount=type=cache,target=/tmp/composer-cache \
 
 COPY . .
 
-RUN --mount=type=cache,target=/tmp/composer-cache \
-    COMPOSER_CACHE_DIR=/tmp/composer-cache \
-    composer install \
-      --no-dev \
-      --no-interaction \
-      --no-progress \
-      --optimize-autoloader \
-      --ignore-platform-reqs
+RUN composer dump-autoload --optimize --no-dev --no-interaction
 
 # -----------------------------------------------------------------------------
 # Stage 3: 单容器 — Caddy + PHP-FPM
@@ -89,20 +82,20 @@ COPY --from=caddy:2-alpine /usr/bin/caddy /usr/bin/caddy
 
 WORKDIR /var/www/html
 
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
-COPY deploy/start-web.sh /usr/local/bin/start-web.sh
-RUN chmod +x /usr/local/bin/start-web.sh \
-    && caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-
-COPY . .
-COPY --from=vendor /app/vendor ./vendor
-COPY --from=frontend /src/public/spa ./public/spa
-
-COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh \
+COPY deploy/ /tmp/deploy/
+RUN mkdir -p /etc/caddy \
+    && install -m 644 /tmp/deploy/Caddyfile /etc/caddy/Caddyfile \
+    && install -m 755 /tmp/deploy/start-web.sh /usr/local/bin/start-web.sh \
+    && install -m 755 /tmp/deploy/entrypoint.sh /entrypoint.sh \
+    && caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile \
     && mkdir -p runtime/cache runtime/log runtime/temp runtime/session \
     && chown -R www-data:www-data runtime \
-    && chmod -R 775 runtime
+    && chmod -R 775 runtime \
+    && rm -rf /tmp/deploy
+
+COPY . .
+COPY --link --from=vendor /app/vendor ./vendor
+COPY --link --from=frontend /src/public/spa ./public/spa
 
 EXPOSE 80
 

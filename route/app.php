@@ -65,6 +65,7 @@ Route::group('api', function () {
         Route::get('party/:partyId/bestpay/download', 'user/downloadPartyBestPay');
         Route::post('party/:partyId/bestpay/clear', 'user/clearPartyBestPay');
         Route::get('party/:partyId/bestpay', 'user/partyBestPay');
+        Route::get('party/:partyId/items', 'user/partyItemList');
         Route::delete('party/:id', 'party/destroy');
         Route::get('party/:id', 'party/show');
         Route::get('party', 'party/index');
