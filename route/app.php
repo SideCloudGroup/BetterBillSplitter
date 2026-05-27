@@ -30,6 +30,7 @@ Route::group('api', function () {
         Route::post('item/add', 'user/processAddItem');
         Route::get('item/party/:partyId', 'user/itemListByParty');
         Route::post('item/:id', 'user/updateItemStatus');
+        Route::delete('item/:id', 'user/deleteItem');
         Route::get('item', 'user/itemList');
         Route::post('logout', 'user/logout');
         Route::get('profile', 'user/profile');
@@ -55,6 +56,7 @@ Route::group('api', function () {
         Route::get('party/:id/edit', 'party/edit');
         Route::post('party/:id/update', 'party/update');
         Route::post('party/:id/leave', 'party/leave');
+        Route::delete('party/:partyId/member/:userId', 'party/removeMember');
         Route::post('party/:id/archive', 'party/archive');
         Route::get('party/:partyId/archive/download', 'party/downloadArchiveExport');
         Route::post('party/validate-timezone', 'party/validateTimezone');

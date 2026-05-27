@@ -5,9 +5,20 @@ let refreshPromise: Promise<boolean> | null = null;
 
 export type AuthUser = { id: number; username: string; is_admin: boolean };
 
+export const AUTH_USER_CHANGED_EVENT = 'auth:user-changed';
+
+function notifyAuthUserChanged(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_USER_CHANGED_EVENT));
+  }
+}
+
 export function applyAuthPayload(data: { access_token?: string; user?: AuthUser }): void {
   if (data.access_token) accessToken = data.access_token;
-  if (data.user) setMe(data.user);
+  if (data.user) {
+    setMe(data.user);
+    notifyAuthUserChanged();
+  }
 }
 
 export function setAccessToken(token: string | null): void {
@@ -25,7 +36,10 @@ async function doRefresh(): Promise<boolean> {
     const data = (await res.json()) as { ret?: number; access_token?: string; user?: AuthUser };
     if (data.ret === 1 && data.access_token) {
       accessToken = data.access_token;
-      if (data.user) setMe(data.user);
+      if (data.user) {
+        setMe(data.user);
+        notifyAuthUserChanged();
+      }
       return true;
     }
     return false;

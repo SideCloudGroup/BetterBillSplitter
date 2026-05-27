@@ -159,6 +159,42 @@ export function PartyShowPage() {
     });
   };
 
+  const deleteItem = (item: PartyItem) => {
+    Modal.confirm({
+      title: '确认删除该账目？',
+      okType: 'danger',
+      okText: '确认删除',
+      cancelText: '取消',
+      content: (
+        <div>
+          <Typography.Paragraph style={{marginBottom: 8}}>
+            将删除账目
+            {item.description ? (
+              <>
+                {' '}
+                <Typography.Text strong>{item.description}</Typography.Text>
+              </>
+            ) : null}
+            ，此操作不可恢复。
+          </Typography.Paragraph>
+          <Typography.Paragraph type="secondary" style={{marginBottom: 0}}>
+            支付人 {item.payer_name || '—'} · 发起人 {item.initiator_name || '—'}
+          </Typography.Paragraph>
+        </div>
+      ),
+      onOk: async () => {
+        const r = await apiDelete(`/user/item/${item.id}`);
+        const out = (await r.json()) as { ret: number; msg?: string };
+        if (out.ret !== 1) {
+          message.error(out.msg || '删除失败');
+          return;
+        }
+        message.success(out.msg || '账目已删除');
+        await load();
+      },
+    });
+  };
+
   const archive = () => {
     Modal.confirm({
       title: '归档派对',
@@ -349,6 +385,17 @@ export function PartyShowPage() {
                   meta: `支付人 ${it.payer_name || '—'} · 发起人 ${it.initiator_name || '—'}`,
                   amount: formatMoney(sym, parseAmount(it.amount)),
                   paid,
+                  action:
+                    isOwner && !archived ? (
+                      <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined/>}
+                        onClick={() => deleteItem(it)}
+                      >
+                        删除
+                      </Button>
+                    ) : undefined,
                 };
               })}
               empty={

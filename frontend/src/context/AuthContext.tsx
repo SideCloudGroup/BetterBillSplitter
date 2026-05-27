@@ -1,5 +1,5 @@
-import {createContext, useCallback, useContext, useMemo, useState} from 'react';
-import type {AuthUser} from '@/api/client';
+import {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import {AUTH_USER_CHANGED_EVENT, type AuthUser} from '@/api/client';
 import {getMe, setMe as persistMe} from '@/lib/storage';
 
 type Ctx = {
@@ -15,6 +15,17 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
     persistMe(u);
     setUserState(u);
   }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setUserState(getMe());
+    };
+    window.addEventListener(AUTH_USER_CHANGED_EVENT, handler);
+    return () => {
+      window.removeEventListener(AUTH_USER_CHANGED_EVENT, handler);
+    };
+  }, []);
+
   const v = useMemo(() => ({user, setUser}), [user, setUser]);
   return <AuthContext.Provider value={v}>{children}</AuthContext.Provider>;
 }
