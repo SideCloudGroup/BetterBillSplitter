@@ -366,7 +366,73 @@ class PartyController extends BaseController
             ->field('user.id, user.username')
             ->select();
 
-        return json(['ret' => 1, 'users' => $members]);
+        return json([
+            'ret' => 1,
+            'users' => $members,
+            'is_owner' => $party->owner_id === $userId,
+            'owner_id' => (int)$party->owner_id,
+            'is_archived' => $party->isArchived(),
+        ]);
+    }
+
+    /**
+     * 移除派对成员（仅所有者）
+     */
+    public function removeMember(Request $request, int $partyId, int $userId): Json
+    {
+        $currentUserId = $this->currentUserId();
+
+        $party = Party::find($partyId);
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '派对不存在'], 404);
+        }
+
+        if ($party->owner_id !== $currentUserId) {
+            return json(['ret' => 0, 'msg' => '只有派对所有者可以移除成员'], 403);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '已归档的派对无法移除成员']);
+        }
+
+        if ($userId === $currentUserId) {
+            return json(['ret' => 0, 'msg' => '不能移除自己，如需解散请删除派对']);
+        }
+
+        if ($userId === (int)$party->owner_id) {
+            return json(['ret' => 0, 'msg' => '不能移除派对所有者']);
+        }
+
+        $member = PartyMember::where('party_id', $partyId)
+            ->where('user_id', $userId)
+            ->find();
+        if (! $member) {
+            return json(['ret' => 0, 'msg' => '该用户不是该派对的成员'], 404);
+        }
+
+        $relatedItems = Db::table('item')
+            ->where('party_id', $partyId)
+            ->where(function ($query) use ($userId) {
+                $query->where('initiator', $userId)
+                    ->whereOr('userid', $userId);
+            })
+            ->count();
+        if ($relatedItems > 0) {
+            return json([
+                'ret' => 0,
+                'msg' => '该成员存在支付/代付记录，无法移除',
+            ]);
+        }
+
+        try {
+            PartyMember::where('party_id', $partyId)
+                ->where('user_id', $userId)
+                ->delete();
+
+            return json(['ret' => 1, 'msg' => '已移除成员']);
+        } catch (Exception $e) {
+            return json(['ret' => 0, 'msg' => '移除失败：' . $e->getMessage()]);
+        }
     }
 
     /**
