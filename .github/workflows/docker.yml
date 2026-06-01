@@ -2,6 +2,7 @@ name: Build & Push Docker (multi-arch)
 
 on:
   push:
+    branches: [dev]
     tags: [ "v*" ]
 
 permissions:
@@ -45,7 +46,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
@@ -63,4 +65,5 @@ jobs:
 
       - name: Summary
         run: |
-          echo "✅ Pushed multi-arch image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          echo "✅ Pushed multi-arch image(s):"
+          echo "${{ steps.meta.outputs.tags }}"
