@@ -51,7 +51,7 @@ class FIDO
 
     public static function fidoRegisterHandle(User $user, array $data, string $challengeId): array
     {
-        $deviceName = trim((string) ($data['name'] ?? ''));
+        $deviceName = trim((string)($data['name'] ?? ''));
         $credentialPayload = $data;
         unset($credentialPayload['challenge_id'], $credentialPayload['name']);
 

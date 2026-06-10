@@ -270,12 +270,22 @@ class PartyController extends BaseController
             ->field('user.id, user.username, party_member.joined_at')
             ->select();
 
-        $items = Db::table('item')
+        $rawItems = Db::table('item')
             ->join('user payer', 'item.userid = payer.id')
             ->join('user initiator', 'item.initiator = initiator.id')
             ->where('item.party_id', $id)
-            ->field('item.*, payer.username as payer_name, initiator.username as initiator_name')
-            ->select();
+            ->field(
+                'item.id, item.description, item.amount, item.paid, item.userid, item.initiator,
+                     payer.username as payer_name, initiator.username as initiator_name'
+            )
+            ->select()
+            ->toArray();
+
+        $items = [];
+        foreach ($rawItems as $row) {
+            $row['is_my_item'] = ((int)$row['userid'] === $userId || (int)$row['initiator'] === $userId);
+            $items[] = $row;
+        }
 
         $currencyService = app()->currencyService;
         $allCurrencies = $currencyService->getAllAvailableCurrencies();

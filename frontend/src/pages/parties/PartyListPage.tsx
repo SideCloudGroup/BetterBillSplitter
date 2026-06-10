@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Link} from 'react-router-dom';
-import {Button, Segmented, Space, Tag} from 'antd';
+import {Button, Segmented, Space, Switch, Tag, Typography} from 'antd';
 import {LoginOutlined, PlusOutlined, TeamOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
 import {EmptyState, EntityCard, PageShell, SectionTitle, SurfaceCard} from '@/components/ui';
@@ -13,6 +13,7 @@ export function PartyListPage() {
   const [owned, setOwned] = useState<P[]>([]);
   const [joined, setJoined] = useState<P[]>([]);
   const [filter, setFilter] = useState<PartyFilter>('all');
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -28,20 +29,29 @@ export function PartyListPage() {
     })();
   }, []);
 
-  const counts = useMemo(
-    () => ({
-      all: owned.length + joined.length,
-      owned: owned.length,
-      joined: joined.length,
-    }),
+  const activeOwned = useMemo(() => owned.filter((p) => !p.archived_at), [owned]);
+  const activeJoined = useMemo(() => joined.filter((p) => !p.archived_at), [joined]);
+  const archivedCount = useMemo(
+    () => owned.filter((p) => p.archived_at).length + joined.filter((p) => p.archived_at).length,
     [owned, joined],
   );
 
+  const counts = useMemo(
+    () => ({
+      all: (showArchived ? owned.length + joined.length : activeOwned.length + activeJoined.length),
+      owned: showArchived ? owned.length : activeOwned.length,
+      joined: showArchived ? joined.length : activeJoined.length,
+    }),
+    [showArchived, owned, joined, activeOwned, activeJoined],
+  );
+
   const parties = useMemo(() => {
-    if (filter === 'owned') return owned;
-    if (filter === 'joined') return joined;
-    return [...owned, ...joined];
-  }, [filter, owned, joined]);
+    const ownedSrc = showArchived ? owned : activeOwned;
+    const joinedSrc = showArchived ? joined : activeJoined;
+    if (filter === 'owned') return ownedSrc;
+    if (filter === 'joined') return joinedSrc;
+    return [...ownedSrc, ...joinedSrc];
+  }, [filter, owned, joined, activeOwned, activeJoined, showArchived]);
 
   return (
     <PageShell
@@ -76,8 +86,17 @@ export function PartyListPage() {
             {label: `我加入的 (${counts.joined})`, value: 'joined'},
           ]}
         />
+
+        <div style={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6, marginTop: 10}}>
+          <Switch size="small" checked={showArchived} onChange={setShowArchived}/>
+          <Typography.Text type="secondary" style={{fontSize: 12}}>
+            显示已归档
+            {archivedCount > 0 ? `（${archivedCount}）` : ''}
+          </Typography.Text>
+        </div>
+
         {parties.length === 0 ? (
-          <EmptyState description="暂无派对"/>
+          <EmptyState description={showArchived ? '暂无派对' : '暂无活跃派对'}/>
         ) : (
           <div className="bbs-entity-list">
             {parties.map((p) => (

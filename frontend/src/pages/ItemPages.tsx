@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
-import {Alert, Badge, Button, Popconfirm, Space, Tabs, message} from 'antd';
+import {Alert, Badge, Button, message, Popconfirm, Space, Tabs} from 'antd';
 import {AccountBookOutlined, DeleteOutlined, PlusOutlined} from '@ant-design/icons';
 import {apiDelete, apiJson, apiPostForm} from '@/api/client';
 import {formatMoney} from '@/lib/formatMoney';
@@ -177,19 +177,35 @@ export function ItemPartyPage() {
   const sym = party?.currency_symbol || '¥';
   const archived = party?.is_archived === true;
 
+  // 非派对主只能看到与自己相关的账目
+  const baseItems = useMemo(
+    () => (isOwner ? items : items.filter((it) => it.is_my_initiation || it.is_my_payment)),
+    [items, isOwner],
+  );
+
   const filteredItems = useMemo(() => {
     switch (filter) {
-      case 'unpaid': return items.filter((it) => Number(it.paid) === 0);
-      case 'my_initiated': return items.filter((it) => it.is_my_initiation);
-      case 'my_payment': return items.filter((it) => it.is_my_payment);
-      default: return items;
+      case 'unpaid':
+        return baseItems.filter((it) => Number(it.paid) === 0);
+      case 'my_initiated':
+        return baseItems.filter((it) => it.is_my_initiation);
+      case 'my_payment':
+        return baseItems.filter((it) => it.is_my_payment);
+      default:
+        return baseItems;
     }
-  }, [items, filter]);
+  }, [baseItems, filter]);
 
   const tabItems = [
     {
       key: 'all' as FilterKey,
-      label: <span>全部&nbsp;<Badge count={stats?.total ?? 0} size="small" showZero color="#8c8c8c"/></span>,
+      label: (
+        <span>
+          {isOwner ? '全部' : '我的相关'}
+          &nbsp;
+          <Badge count={baseItems.length} size="small" showZero color="#8c8c8c"/>
+        </span>
+      ),
     },
     {
       key: 'unpaid' as FilterKey,
@@ -209,20 +225,34 @@ export function ItemPartyPage() {
     if (!stats) return null;
     switch (filter) {
       case 'all':
+        if (isOwner) {
+          return (
+            <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16}}>
+              <div style={{flex: 1, minWidth: 140}}>
+                <SummaryStrip label="账目总额" value={formatMoney(sym, stats.total_amount)} tone="primary"/>
+              </div>
+              <div style={{flex: 1, minWidth: 140}}>
+                <SummaryStrip label="其中未付" value={formatMoney(sym, stats.unpaid_amount)} tone="warning"/>
+              </div>
+            </div>
+          );
+        }
+        // 非派对主：展示个人相关的汇总
         return (
           <div style={{display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16}}>
             <div style={{flex: 1, minWidth: 140}}>
-              <SummaryStrip label="账目总额" value={formatMoney(sym, stats.total_amount)} tone="primary"/>
+              <SummaryStrip label="我发起未收回" value={formatMoney(sym, stats.my_initiated_unpaid)} tone="success"/>
             </div>
             <div style={{flex: 1, minWidth: 140}}>
-              <SummaryStrip label="其中未付" value={formatMoney(sym, stats.unpaid_amount)} tone="warning"/>
+              <SummaryStrip label="我待付合计" value={formatMoney(sym, stats.my_payment_amount)} tone="warning"/>
             </div>
           </div>
         );
       case 'unpaid':
         return (
           <div style={{marginBottom: 16}}>
-            <SummaryStrip label="未付总额" value={formatMoney(sym, stats.unpaid_amount)} tone="warning"/>
+            <SummaryStrip label={isOwner ? '未付总额' : '我待付合计'} value={formatMoney(sym, stats.unpaid_amount)}
+                          tone="warning"/>
           </div>
         );
       case 'my_initiated':

@@ -19,6 +19,8 @@ import {MfaPage} from '@/pages/MfaPage';
 
 import {HomePage} from '@/pages/HomePage';
 
+import {BillsPage} from '@/pages/BillsPage';
+
 import {PaymentListPage} from '@/pages/PaymentListPage';
 
 import {PaymentPartyPage} from '@/pages/PaymentPartyPage';
@@ -163,6 +165,8 @@ export function App() {
                 >
 
                   <Route index element={<HomePage/>}/>
+
+                  <Route path="bills" element={<BillsPage/>}/>
 
                   <Route path="payment" element={<PaymentListPage/>}/>
 

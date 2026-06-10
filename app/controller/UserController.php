@@ -457,29 +457,35 @@ class UserController extends BaseController
     {
         $userId = $this->currentUserId();
 
-        // 获取用户加入的所有派对，并计算每个派对的待支付总金额
+        // 获取用户加入的所有未归档派对
         $parties = Db::table('party')
             ->join('party_member', 'party.id = party_member.party_id')
             ->where('party_member.user_id', $userId)
+            ->whereNull('party.archived_at')
             ->field('party.id, party.name, party.description, party.base_currency')
             ->select()
             ->toArray();
 
-        // 为每个派对计算待支付总金额
-        foreach ($parties as $key => $party) {
+        // 为每个派对计算待支付总金额，过滤掉无待付项的派对
+        $result = [];
+        foreach ($parties as $party) {
             $totalAmount = Db::table('item')
                 ->where('party_id', $party['id'])
                 ->where('userid', $userId)
                 ->where('paid', 0)
                 ->sum('amount');
-            $parties[$key]['total_amount'] = $totalAmount ? : 0;
 
-            // 获取派对货币信息
+            if (! $totalAmount || (float)$totalAmount <= 0) {
+                continue;
+            }
+
             $currency = Currency::getByCode($party['base_currency']);
-            $parties[$key]['currency_symbol'] = $currency ? $currency->symbol : '¥';
+            $party['total_amount'] = $totalAmount;
+            $party['currency_symbol'] = $currency ? $currency->symbol : '¥';
+            $result[] = $party;
         }
 
-        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
+        return json(['ret' => 1, 'data' => ['parties' => $result]]);
     }
 
     public function paymentByParty(Request $request, int $partyId): Json
@@ -539,29 +545,35 @@ class UserController extends BaseController
     {
         $userId = $this->currentUserId();
 
-        // 获取用户加入的所有派对，并计算每个派对的未收款总金额
+        // 获取用户加入的所有未归档派对
         $parties = Db::table('party')
             ->join('party_member', 'party.id = party_member.party_id')
             ->where('party_member.user_id', $userId)
+            ->whereNull('party.archived_at')
             ->field('party.id, party.name, party.description, party.base_currency')
             ->select()
             ->toArray();
 
-        // 为每个派对计算未收款总金额
-        foreach ($parties as $key => $party) {
+        // 为每个派对计算未收款总金额，过滤掉无待收项的派对
+        $result = [];
+        foreach ($parties as $party) {
             $totalAmount = Db::table('item')
                 ->where('party_id', $party['id'])
                 ->where('initiator', $userId)
                 ->where('paid', 0)
                 ->sum('amount');
-            $parties[$key]['total_amount'] = $totalAmount ? : 0;
 
-            // 获取派对货币信息
+            if (! $totalAmount || (float)$totalAmount <= 0) {
+                continue;
+            }
+
             $currency = Currency::getByCode($party['base_currency']);
-            $parties[$key]['currency_symbol'] = $currency ? $currency->symbol : '¥';
+            $party['total_amount'] = $totalAmount;
+            $party['currency_symbol'] = $currency ? $currency->symbol : '¥';
+            $result[] = $party;
         }
 
-        return json(['ret' => 1, 'data' => ['parties' => $parties]]);
+        return json(['ret' => 1, 'data' => ['parties' => $result]]);
     }
 
     public function itemListByParty(Request $request, int $partyId): Json
@@ -655,8 +667,10 @@ class UserController extends BaseController
             ->join('user payer', 'i.userid = payer.id')
             ->join('user initiator_u', 'i.initiator = initiator_u.id')
             ->where('i.party_id', $partyId)
-            ->field('i.id, i.description, i.amount, i.paid, i.created_at, i.userid, i.initiator,
-                     payer.username as payer_name, initiator_u.username as initiator_name')
+            ->field(
+                'i.id, i.description, i.amount, i.paid, i.created_at, i.userid, i.initiator,
+                     payer.username as payer_name, initiator_u.username as initiator_name'
+            )
             ->order('i.created_at', 'desc')
             ->select()
             ->toArray();

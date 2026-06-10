@@ -27,6 +27,7 @@ type PartyItem = {
   paid?: number;
   payer_name?: string;
   initiator_name?: string;
+  is_my_item?: boolean;
 };
 
 type PartyData = {
@@ -335,7 +336,7 @@ export function PartyShowPage() {
         <QuickAction
           to={`/items/party/${partyId}`}
           icon={<WalletOutlined/>}
-          label="收款管理"
+          label={isOwner ? '管理账目' : '我的账目'}
           accent="#0d9488"
         />
         {!archived ? (
@@ -368,57 +369,61 @@ export function PartyShowPage() {
 
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={16}>
-          <SurfaceCard
-            title="账目列表"
-            extra={
+          {(() => {
+            const displayItems = isOwner ? items : items.filter((it) => it.is_my_item);
+            const listTitle = isOwner ? '账目列表' : '我的相关账目';
+            const listExtra = (
               <Link to={`/items/party/${partyId}`}>
-                <Typography.Link>查看全部</Typography.Link>
+                <Typography.Link>{isOwner ? '管理全部' : '查看详情'}</Typography.Link>
               </Link>
-            }
-          >
-            <LedgerList
-              rows={items.map((it) => {
-                const paid = Number(it.paid) === 1;
-                return {
-                  id: it.id,
-                  title: it.description || '（无描述）',
-                  meta: `支付人 ${it.payer_name || '—'} · 发起人 ${it.initiator_name || '—'}`,
-                  amount: formatMoney(sym, parseAmount(it.amount)),
-                  paid,
-                  action:
-                    isOwner && !archived ? (
-                      <Button
-                        danger
-                        size="small"
-                        icon={<DeleteOutlined/>}
-                        onClick={() => deleteItem(it)}
-                      >
-                        删除
-                      </Button>
-                    ) : undefined,
-                };
-              })}
-              empty={
-                <EmptyState
-                  description="暂无账目"
-                  action={
-                    !archived ? (
-                      <Link to={`/items/add?party_id=${partyId}`}>
-                        <Button type="primary" size="small" icon={<PlusOutlined/>}>
-                          添加第一笔收款
-                        </Button>
-                      </Link>
-                    ) : undefined
+            );
+            return (
+              <SurfaceCard title={listTitle} extra={listExtra}>
+                <LedgerList
+                  rows={displayItems.map((it) => {
+                    const paid = Number(it.paid) === 1;
+                    return {
+                      id: it.id,
+                      title: it.description || '（无描述）',
+                      meta: `支付人 ${it.payer_name || '—'} · 发起人 ${it.initiator_name || '—'}`,
+                      amount: formatMoney(sym, parseAmount(it.amount)),
+                      paid,
+                      action:
+                        isOwner && !archived ? (
+                          <Button
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined/>}
+                            onClick={() => deleteItem(it)}
+                          >
+                            删除
+                          </Button>
+                        ) : undefined,
+                    };
+                  })}
+                  empty={
+                    <EmptyState
+                      description={isOwner ? '暂无账目' : '暂无与你相关的账目'}
+                      action={
+                        isOwner && !archived ? (
+                          <Link to={`/items/add?party_id=${partyId}`}>
+                            <Button type="primary" size="small" icon={<PlusOutlined/>}>
+                              添加第一笔收款
+                            </Button>
+                          </Link>
+                        ) : undefined
+                      }
+                    />
                   }
                 />
-              }
-            />
-            {stats.unpaidCount > 0 ? (
-              <Typography.Text type="secondary" style={{display: 'block', marginTop: 12, fontSize: 13}}>
-                未付合计 {formatMoney(sym, stats.unpaid)}
-              </Typography.Text>
-            ) : null}
-          </SurfaceCard>
+                {stats.unpaidCount > 0 && isOwner ? (
+                  <Typography.Text type="secondary" style={{display: 'block', marginTop: 12, fontSize: 13}}>
+                    未付合计 {formatMoney(sym, stats.unpaid)}
+                  </Typography.Text>
+                ) : null}
+              </SurfaceCard>
+            );
+          })()}
         </Col>
 
         <Col xs={24} lg={8}>

@@ -3,15 +3,14 @@ import {Link, Outlet, useLocation, useNavigate} from 'react-router-dom';
 import {Avatar, Button, Grid, Layout, Menu, Space, theme as antTheme, Typography} from 'antd';
 import {
   AccountBookFilled,
-  AccountBookOutlined,
   CloseOutlined,
   HomeOutlined,
   LogoutOutlined,
   MenuOutlined,
-  PayCircleOutlined,
   SafetyCertificateOutlined,
   TeamOutlined,
   UserOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import {apiFetch, setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
@@ -24,8 +23,7 @@ const {useBreakpoint} = Grid;
 const navItems = (isAdmin: boolean) => {
   const base = [
     {key: '/', icon: <HomeOutlined/>, label: <Link to="/">概览</Link>},
-    {key: '/payment', icon: <PayCircleOutlined/>, label: <Link to="/payment">支付</Link>},
-    {key: '/items', icon: <AccountBookOutlined/>, label: <Link to="/items">收款</Link>},
+    {key: '/bills', icon: <WalletOutlined/>, label: <Link to="/bills">账单</Link>},
     {key: '/parties', icon: <TeamOutlined/>, label: <Link to="/parties">派对</Link>},
     {key: '/profile', icon: <UserOutlined/>, label: <Link to="/profile">账户</Link>},
   ];
@@ -42,8 +40,7 @@ const navItems = (isAdmin: boolean) => {
 function selectedFromPath(pathname: string): string {
   if (pathname === '/' || pathname === '') return '/';
   if (pathname.startsWith('/admin')) return '/admin';
-  if (pathname.startsWith('/payment')) return '/payment';
-  if (pathname.startsWith('/items')) return '/items';
+  if (pathname.startsWith('/bills') || pathname.startsWith('/payment') || pathname.startsWith('/items')) return '/bills';
   if (pathname.startsWith('/parties')) return '/parties';
   if (pathname.startsWith('/profile')) return '/profile';
   return '/';
