@@ -243,7 +243,7 @@ export function PartyShowPage() {
   return (
     <PageShell
       title={party?.name || '派对详情'}
-      subtitle="查看成员、账目与快捷操作"
+      subtitle="派对概览 · 账目汇总与快捷操作"
       back={{to: '/parties'}}
       loading={loading}
       error={err}
@@ -334,29 +334,29 @@ export function PartyShowPage() {
           accent="#d97706"
         />
         <QuickAction
-          to={`/items/party/${partyId}`}
+          to={`/parties/${partyId}/my-items`}
           icon={<WalletOutlined/>}
-          label={isOwner ? '管理账目' : '我的账目'}
-          accent="#0d9488"
+          label="我的账目"
+          accent="#7c3aed"
         />
+        {isOwner ? (
+          <QuickAction
+            to={`/items/party/${partyId}`}
+            icon={<AccountBookOutlined/>}
+            label="管理账目"
+            accent="#0d9488"
+          />
+        ) : null}
         {!archived ? (
           <QuickAction
             to={`/items/add?party_id=${partyId}`}
             icon={<PlusOutlined/>}
-            label="添加收款"
+            label="发起收款"
             accent="#16a34a"
           />
         ) : (
-          <QuickAction icon={<PlusOutlined/>} label="添加收款" disabled/>
+          <QuickAction icon={<PlusOutlined/>} label="发起收款" disabled/>
         )}
-        {!archived ? (
-          <QuickAction
-            to={`/payment/party/${partyId}`}
-            icon={<AccountBookOutlined/>}
-            label="我的待付"
-            accent="#7c3aed"
-          />
-        ) : null}
         {isOwner && !archived ? (
           <QuickAction
             to={`/parties/${partyId}/edit`}
@@ -372,8 +372,11 @@ export function PartyShowPage() {
           {(() => {
             const displayItems = isOwner ? items : items.filter((it) => it.is_my_item);
             const listTitle = isOwner ? '账目列表' : '我的相关账目';
+            const manageLink = isOwner
+              ? `/items/party/${partyId}`
+              : `/parties/${partyId}/my-items`;
             const listExtra = (
-              <Link to={`/items/party/${partyId}`}>
+              <Link to={manageLink}>
                 <Typography.Link>{isOwner ? '管理全部' : '查看详情'}</Typography.Link>
               </Link>
             );

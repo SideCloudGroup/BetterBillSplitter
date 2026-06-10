@@ -41,6 +41,8 @@ import {PartyEditPage} from '@/pages/parties/PartyEditPage';
 
 import {PartyBestPayPage} from '@/pages/parties/PartyBestPayPage';
 
+import {PartyMyItemsPage} from '@/pages/parties/PartyMyItemsPage';
+
 import {PartyMembersPage} from '@/pages/parties/PartyMembersPage';
 
 import {ProfilePage} from '@/pages/ProfilePage';
@@ -189,6 +191,8 @@ export function App() {
                   <Route path="parties/:id/edit" element={<PartyEditPage/>}/>
 
                   <Route path="parties/:id/bestpay" element={<PartyBestPayPage/>}/>
+
+                  <Route path="parties/:id/my-items" element={<PartyMyItemsPage/>}/>
 
                   <Route path="parties/:id" element={<PartyShowPage/>}/>
 

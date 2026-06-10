@@ -14,10 +14,10 @@ type PartyRow = {
   currency_symbol?: string;
 };
 
-function PaymentTabContent({rows, loading, err}: { rows: PartyRow[]; loading: boolean; err: string | null }) {
+function PaymentTabContent({rows, loading, err}: {rows: PartyRow[]; loading: boolean; err: string | null}) {
   if (err) return <Alert type="error" message={err} showIcon/>;
   if (loading) return <Skeleton active paragraph={{rows: 3}}/>;
-  if (rows.length === 0) return <EmptyState description="暂无待付项目，所有款项已结清！"/>;
+  if (rows.length === 0) return <EmptyState description="暂无应付账目，所有款项已结清！"/>;
   return (
     <div className="bbs-entity-list">
       {rows.map((r) => {
@@ -39,13 +39,13 @@ function PaymentTabContent({rows, loading, err}: { rows: PartyRow[]; loading: bo
   );
 }
 
-function ItemsTabContent({rows, loading, err}: { rows: PartyRow[]; loading: boolean; err: string | null }) {
+function ItemsTabContent({rows, loading, err}: {rows: PartyRow[]; loading: boolean; err: string | null}) {
   if (err) return <Alert type="error" message={err} showIcon/>;
   if (loading) return <Skeleton active paragraph={{rows: 3}}/>;
   if (rows.length === 0) {
     return (
       <EmptyState
-        description="暂无待收款记录"
+        description="暂无应收款项"
         action={
           <Link to="/items/add">
             <Button type="primary" size="small" icon={<PlusOutlined/>}>
@@ -63,11 +63,11 @@ function ItemsTabContent({rows, loading, err}: { rows: PartyRow[]; loading: bool
         return (
           <EntityCard
             key={r.id}
-            to={`/items/party/${r.id}`}
+            to={`/parties/${r.id}/my-items`}
             title={r.name}
             description={r.description}
             amount={formatMoney(sym, r.total_amount ?? 0)}
-            amountLabel="未收回款"
+            amountLabel="待收回"
             amountTone="success"
             icon={<AccountBookOutlined/>}
           />
@@ -88,8 +88,8 @@ export function BillsPage() {
     void (async () => {
       try {
         const [payData, itemData] = await Promise.all([
-          apiJson<{ ret: number; data?: { parties?: PartyRow[] } }>('/user/payment'),
-          apiJson<{ ret: number; data?: { parties?: PartyRow[] } }>('/user/item'),
+          apiJson<{ret: number; data?: {parties?: PartyRow[]}}>('/user/payment'),
+          apiJson<{ret: number; data?: {parties?: PartyRow[]}}>('/user/item'),
         ]);
         if (payData.ret === 1) setPayRows(payData.data?.parties || []);
         else setPayErr('加载失败');
@@ -110,7 +110,7 @@ export function BillsPage() {
       key: 'payment',
       label: (
         <span>
-          待付给他人
+          应付款项
           {payRows.length > 0 ? (
             <Badge count={payRows.length} size="small" style={{marginLeft: 6, verticalAlign: 'middle'}}/>
           ) : null}
@@ -129,10 +129,14 @@ export function BillsPage() {
       key: 'items',
       label: (
         <span>
-          他人欠我的
+          应收款项
           {itemRows.length > 0 ? (
-            <Badge count={itemRows.length} size="small" color="#52c41a"
-                   style={{marginLeft: 6, verticalAlign: 'middle'}}/>
+            <Badge
+              count={itemRows.length}
+              size="small"
+              color="#52c41a"
+              style={{marginLeft: 6, verticalAlign: 'middle'}}
+            />
           ) : null}
         </span>
       ),
@@ -157,7 +161,7 @@ export function BillsPage() {
   return (
     <PageShell
       title="账单"
-      subtitle="管理你需要支付给他人的款项，以及他人欠你的款项"
+      subtitle="查看待付给各派对的款项，以及发起的应收账目"
       maxWidth={720}
     >
       <Tabs

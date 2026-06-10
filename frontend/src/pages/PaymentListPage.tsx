@@ -35,7 +35,7 @@ export function PaymentListPage() {
   }, []);
 
   return (
-    <PageShell title="支付" subtitle="查看各派对中你需要支付的款项" loading={loading} error={err} maxWidth={720}>
+    <PageShell title="应付账单" subtitle="查看各派对中你的应付款项" loading={loading} error={err} maxWidth={720}>
       <SurfaceCard title={<SectionTitle icon={<WalletOutlined/>}>待付派对</SectionTitle>}>
         {rows.length === 0 ? (
           <EmptyState description="暂无待付项目，太好了！"/>

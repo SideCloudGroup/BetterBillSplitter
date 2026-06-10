@@ -48,7 +48,7 @@ export function PaymentPartyPage() {
   return (
     <PageShell
       title={`支付 — ${party?.name || ''}`}
-      subtitle={party?.description || '你需要支付的款项明细'}
+      subtitle={party?.description || '你在本派对的应付款项明细'}
       back={{to: '/payment'}}
       loading={loading}
       error={err}
@@ -60,7 +60,7 @@ export function PaymentPartyPage() {
           rows={items.map((it) => ({
             id: it.id,
             title: it.description || '（无描述）',
-            meta: `发起人 ${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
+            meta: `发起方：${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
             amount: formatMoney(sym, it.amount),
           }))}
           empty={<EmptyState description="无待付条目"/>}
