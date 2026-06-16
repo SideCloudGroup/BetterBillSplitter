@@ -33,6 +33,8 @@ import {PartyListPage} from '@/pages/parties/PartyListPage';
 
 import {PartyJoinPage} from '@/pages/parties/PartyJoinPage';
 
+import {PartyInvitePage} from '@/pages/parties/PartyInvitePage';
+
 import {PartyCreatePage} from '@/pages/parties/PartyCreatePage';
 
 import {PartyShowPage} from '@/pages/parties/PartyShowPage';
@@ -151,6 +153,8 @@ export function App() {
                 <Route path="/register" element={<RegisterPage/>}/>
 
                 <Route path="/mfa" element={<MfaPage/>}/>
+
+                <Route path="/parties/join/:code" element={<PartyInvitePage/>}/>
 
                 <Route
 

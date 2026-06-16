@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {Link, useNavigate} from 'react-router-dom';
+import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {Alert, Button, Form, Input, message, Typography} from 'antd';
 import {setAccessToken} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
@@ -9,6 +9,8 @@ import {AuthLayout} from '@/components/ui';
 
 export function RegisterPage() {
   const nav = useNavigate();
+  const loc = useLocation();
+  const from = (loc.state as { from?: string } | null)?.from;
   const {setUser} = useAuth();
   const {siteName} = useSite();
   const [err, setErr] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function RegisterPage() {
       return;
     }
     message.success(data.msg || '注册成功');
-    setTimeout(() => nav('/login', {replace: true}), 800);
+    setTimeout(() => nav('/login', {replace: true, state: from ? {from} : undefined}), 800);
   };
 
   return (
@@ -76,7 +78,7 @@ export function RegisterPage() {
         </Form.Item>
       </Form>
       <Typography.Text type="secondary" style={{display: 'block', textAlign: 'center'}}>
-        已有账号？ <Link to="/login">去登录</Link>
+        已有账号？ <Link to="/login" state={from ? {from} : undefined}>去登录</Link>
       </Typography.Text>
     </AuthLayout>
   );

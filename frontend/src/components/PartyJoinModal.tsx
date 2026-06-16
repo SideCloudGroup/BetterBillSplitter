@@ -1,7 +1,8 @@
 import {useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Alert, Form, Input, message, Modal} from 'antd';
+import {Alert, Form, Input, Modal} from 'antd';
 import {apiPostForm} from '@/api/client';
+import {partyInvitePath} from '@/lib/partyInvite';
 
 export type PartyJoinResult =
   | { ok: true; partyId: number; msg: string }
@@ -30,11 +31,10 @@ type PartyJoinModalProps = {
   onSuccess?: (partyId: number) => void;
 };
 
-export function PartyJoinModal({open, onClose, onSuccess}: PartyJoinModalProps) {
+export function PartyJoinModal({open, onClose}: PartyJoinModalProps) {
   const nav = useNavigate();
   const [form] = Form.useForm<{ invite_code: string }>();
   const [err, setErr] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -46,28 +46,16 @@ export function PartyJoinModal({open, onClose, onSuccess}: PartyJoinModalProps) 
   const submit = async () => {
     try {
       const v = await form.validateFields();
-      setErr(null);
-      setSubmitting(true);
-      const result = await joinPartyWithCode(v.invite_code);
-      if (!result.ok) {
-        if (result.partyId) {
-          message.info(result.msg);
-          onSuccess?.(result.partyId);
-          onClose();
-          nav(`/parties/${result.partyId}`);
-          return;
-        }
-        setErr(result.msg);
+      const code = v.invite_code.trim();
+      if (!code) {
+        setErr('请输入邀请码');
         return;
       }
-      message.success(result.msg);
+      setErr(null);
       onClose();
-      onSuccess?.(result.partyId);
-      nav(`/parties/${result.partyId}`);
+      nav(partyInvitePath(code));
     } catch {
       /* validation */
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -77,9 +65,8 @@ export function PartyJoinModal({open, onClose, onSuccess}: PartyJoinModalProps) 
       open={open}
       onCancel={onClose}
       onOk={() => void submit()}
-      okText="加入"
+      okText="下一步"
       cancelText="取消"
-      confirmLoading={submitting}
       destroyOnHidden
     >
       {err ? <Alert type="error" message={err} showIcon style={{marginBottom: 16}}/> : null}

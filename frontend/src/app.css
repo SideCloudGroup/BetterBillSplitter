@@ -491,6 +491,47 @@ body {
     color: #64748b;
 }
 
+.bbs-party-invite-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: rgba(13, 148, 136, 0.06);
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    font-size: 13px;
+    color: #64748b;
+    max-width: 100%;
+}
+
+.bbs-party-invite-link__text {
+    max-width: min(360px, 70vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px !important;
+    color: #0f766e !important;
+}
+
+.bbs-invite-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+}
+
+.bbs-invite-hero {
+    text-align: center;
+    padding: 8px 0 4px;
+}
+
+.bbs-invite-hero__avatar {
+    background: linear-gradient(145deg, #0284c7, #0d9488) !important;
+    margin: 0 auto;
+    display: flex !important;
+}
+
 .bbs-party-actions {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));

@@ -8,6 +8,7 @@ use app\BaseController;
 use app\model\Currency;
 use app\model\Party;
 use app\model\PartyMember;
+use app\model\User;
 use DateTime;
 use DateTimeZone;
 use Exception;
@@ -16,6 +17,7 @@ use think\facade\Db;
 use think\Request;
 use think\Response;
 use think\response\Json;
+use Throwable;
 
 class PartyController extends BaseController
 {
@@ -53,6 +55,89 @@ class PartyController extends BaseController
     public function join(Request $request): Json
     {
         return json(['ret' => 1, 'data' => new stdClass()]);
+    }
+
+    /**
+     * 公开邀请预览（可选 JWT，用于判断 is_member）
+     */
+    public function previewInvite(Request $request, string $code): Json
+    {
+        $inviteCode = trim($code);
+        if ($inviteCode === '') {
+            return json(['ret' => 0, 'msg' => '邀请码不能为空']);
+        }
+
+        $party = Party::where('invite_code', $inviteCode)->find();
+        if (! $party) {
+            return json(['ret' => 0, 'msg' => '邀请码无效']);
+        }
+
+        if ($party->isArchived()) {
+            return json(['ret' => 0, 'msg' => '该派对已归档，无法加入']);
+        }
+
+        $memberCount = PartyMember::where('party_id', $party->id)->count();
+
+        $ownerUsername = '';
+        $owner = User::find($party->owner_id);
+        if ($owner) {
+            $ownerUsername = (string)$owner->username;
+        }
+
+        $currencySymbol = '¥';
+        if ($party->base_currency) {
+            $currency = Currency::getByCode($party->base_currency);
+            $currencySymbol = $currency ? $currency->symbol : '¥';
+        }
+
+        $data = [
+            'party_id' => (int)$party->id,
+            'name' => (string)$party->name,
+            'description' => (string)($party->description ?? ''),
+            'member_count' => $memberCount,
+            'base_currency' => (string)$party->base_currency,
+            'currency_symbol' => $currencySymbol,
+            'owner_username' => $ownerUsername,
+            'archived' => false,
+            'invite_code' => (string)$party->invite_code,
+        ];
+
+        $userId = $this->optionalCurrentUserId();
+        if ($userId !== null) {
+            $data['is_member'] = $party->isMember($userId);
+        }
+
+        return json(['ret' => 1, 'data' => $data]);
+    }
+
+    /**
+     * 尝试从 Authorization 头解析当前用户 ID（失败返回 null）
+     */
+    private function optionalCurrentUserId(): ?int
+    {
+        $auth = (string)$this->request->header('Authorization', '');
+        if (! str_starts_with($auth, 'Bearer ')) {
+            return null;
+        }
+        $token = trim(substr($auth, 7));
+        if ($token === '') {
+            return null;
+        }
+        try {
+            $payload = app('jwtTokenService')->verifyAccessToken($token);
+        } catch (Throwable) {
+            return null;
+        }
+        if ($payload === null) {
+            return null;
+        }
+        app('userService')->setJwtUserId($payload['user_id']);
+        $user = app('userService')->getUser();
+        if ($user === null) {
+            return null;
+        }
+
+        return $user->id;
     }
 
     /**

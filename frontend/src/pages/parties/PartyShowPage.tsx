@@ -10,6 +10,7 @@ import {
   DownloadOutlined,
   EditOutlined,
   InboxOutlined,
+  LinkOutlined,
   LogoutOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -18,6 +19,7 @@ import {
 } from '@ant-design/icons';
 import {apiDelete, apiFetch, apiJson, downloadAuthenticated} from '@/api/client';
 import {formatMoney, parseAmount} from '@/lib/formatMoney';
+import {buildPartyInviteUrl} from '@/lib/partyInvite';
 import {EmptyState, LedgerList, PageShell, StatCard, SurfaceCard} from '@/components/ui';
 
 type PartyItem = {
@@ -281,19 +283,36 @@ export function PartyShowPage() {
                   {party.description}
                 </Typography.Paragraph>
               ) : null}
-              <Flex gap={8} wrap="wrap" align="center">
+              <Flex gap={8} wrap="wrap" align="center" vertical style={{width: '100%'}}>
                 {party?.invite_code ? (
-                  <span className="bbs-party-invite">
-                    邀请码
-                    <Typography.Text code copyable={{text: party.invite_code}}>
-                      {party.invite_code}
-                    </Typography.Text>
-                  </span>
+                  <Flex gap={8} wrap="wrap" align="center">
+                    <span className="bbs-party-invite">
+                      邀请码
+                      <Typography.Text code copyable={{text: party.invite_code}}>
+                        {party.invite_code}
+                      </Typography.Text>
+                    </span>
+                    <span className="bbs-party-invite-link">
+                      <LinkOutlined style={{color: '#64748b'}}/>
+                      邀请链接
+                      <Typography.Text
+                        copyable={{text: buildPartyInviteUrl(party.invite_code), tooltips: ['复制链接', '已复制']}}
+                        className="bbs-party-invite-link__text"
+                      >
+                        {buildPartyInviteUrl(party.invite_code)}
+                      </Typography.Text>
+                    </span>
+                  </Flex>
                 ) : null}
+                <Typography.Text type="secondary" style={{fontSize: 12}}>
+                  分享链接给好友，对方打开后可预览并加入
+                </Typography.Text>
+                <Flex gap={8} wrap="wrap" align="center">
                 {party?.base_currency ? (
                   <Tag bordered={false}>基准货币 {String(party.base_currency).toUpperCase()}</Tag>
                 ) : null}
                 {party?.timezone ? <Tag bordered={false}>{party.timezone}</Tag> : null}
+                </Flex>
               </Flex>
             </div>
           </Flex>

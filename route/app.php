@@ -22,6 +22,8 @@ Route::group('api', function () {
     Route::post('auth/mfa/fido/challenge', 'api.Auth/mfaFidoChallenge');
     Route::post('auth/mfa/fido/verify', 'api.Auth/mfaFidoVerify');
 
+    Route::get('party/invite/:code', 'party/previewInvite');
+
     Route::group('user', function () {
         Route::get('', 'user/index');
         Route::get('payment/party/:partyId', 'user/paymentByParty');

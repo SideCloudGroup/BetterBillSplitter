@@ -1,33 +1,21 @@
 import {useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
-import {Alert, Button, Form, Input, message, Space} from 'antd';
-import {joinPartyWithCode} from '@/components/PartyJoinModal';
+import {Alert, Button, Form, Input, Space} from 'antd';
+import {partyInvitePath} from '@/lib/partyInvite';
 import {PageShell, SurfaceCard} from '@/components/ui';
 
 export function PartyJoinPage() {
   const nav = useNavigate();
   const [err, setErr] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  const onFinish = async (v: { invite_code: string }) => {
-    setErr(null);
-    setSubmitting(true);
-    try {
-      const result = await joinPartyWithCode(v.invite_code);
-      if (!result.ok) {
-        if (result.partyId) {
-          message.info(result.msg);
-          nav(`/parties/${result.partyId}`);
-          return;
-        }
-        setErr(result.msg);
-        return;
-      }
-      message.success(result.msg);
-      nav(`/parties/${result.partyId}`);
-    } finally {
-      setSubmitting(false);
+  const onFinish = (v: { invite_code: string }) => {
+    const code = v.invite_code.trim();
+    if (!code) {
+      setErr('请输入邀请码');
+      return;
     }
+    setErr(null);
+    nav(partyInvitePath(code));
   };
 
   return (
@@ -39,8 +27,8 @@ export function PartyJoinPage() {
             <Input placeholder="输入派对邀请码"/>
           </Form.Item>
           <Space>
-            <Button type="primary" htmlType="submit" loading={submitting}>
-              加入
+            <Button type="primary" htmlType="submit">
+              下一步
             </Button>
             <Link to="/parties">
               <Button>取消</Button>
