@@ -10,6 +10,7 @@ import {
   DownloadOutlined,
   EditOutlined,
   InboxOutlined,
+  CopyOutlined,
   LinkOutlined,
   LogoutOutlined,
   MoreOutlined,
@@ -112,6 +113,16 @@ export function PartyShowPage() {
   const isOwner = data?.isOwner === true;
   const members = data?.members || [];
   const items = data?.items || [];
+
+  const inviteUrl = party?.invite_code ? buildPartyInviteUrl(party.invite_code) : '';
+
+  const copyInviteLink = useCallback(() => {
+    if (!inviteUrl) return;
+    void navigator.clipboard.writeText(inviteUrl).then(
+      () => message.success('链接已复制'),
+      () => message.error('复制失败，请手动选择链接'),
+    );
+  }, [inviteUrl]);
 
   const stats = useMemo(() => {
     let total = 0;
@@ -285,24 +296,29 @@ export function PartyShowPage() {
               ) : null}
               <Flex gap={8} wrap="wrap" align="center" vertical style={{width: '100%'}}>
                 {party?.invite_code ? (
-                  <Flex gap={8} wrap="wrap" align="center">
-                    <span className="bbs-party-invite">
-                      邀请码
+                  <div className="bbs-party-invite-group">
+                    <div className="bbs-party-invite">
+                      <span className="bbs-party-invite__label">邀请码</span>
                       <Typography.Text code copyable={{text: party.invite_code}}>
                         {party.invite_code}
                       </Typography.Text>
-                    </span>
-                    <span className="bbs-party-invite-link">
-                      <LinkOutlined style={{color: '#64748b'}}/>
-                      邀请链接
-                      <Typography.Text
-                        copyable={{text: buildPartyInviteUrl(party.invite_code), tooltips: ['复制链接', '已复制']}}
-                        className="bbs-party-invite-link__text"
-                      >
-                        {buildPartyInviteUrl(party.invite_code)}
-                      </Typography.Text>
-                    </span>
-                  </Flex>
+                    </div>
+                    <div className="bbs-party-invite-link">
+                      <LinkOutlined className="bbs-party-invite-link__icon"/>
+                      <span className="bbs-party-invite-link__label">邀请链接</span>
+                      <span className="bbs-party-invite-link__url" title={inviteUrl}>
+                        {inviteUrl}
+                      </span>
+                      <Button
+                        type="text"
+                        size="small"
+                        className="bbs-party-invite-link__copy-btn"
+                        icon={<CopyOutlined/>}
+                        aria-label="复制邀请链接"
+                        onClick={copyInviteLink}
+                      />
+                    </div>
+                  </div>
                 ) : null}
                 <Typography.Text type="secondary" style={{fontSize: 12}}>
                   分享链接给好友，对方打开后可预览并加入
