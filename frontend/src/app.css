@@ -479,37 +479,84 @@ body {
     flex-shrink: 0;
 }
 
+.bbs-party-invite-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
 .bbs-party-invite {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 12px;
+    padding: 8px 12px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid #e2e8f0;
     font-size: 13px;
     color: #64748b;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.bbs-party-invite__label {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.bbs-party-invite .ant-typography-copy {
+    margin-inline-start: 4px;
 }
 
 .bbs-party-invite-link {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 12px;
+    padding: 8px 8px 8px 12px;
     border-radius: 8px;
     background: rgba(13, 148, 136, 0.06);
     border: 1px solid rgba(13, 148, 136, 0.2);
     font-size: 13px;
     color: #64748b;
-    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
-.bbs-party-invite-link__text {
-    max-width: min(360px, 70vw);
+.bbs-party-invite-link__icon {
+    flex-shrink: 0;
+    color: #64748b;
+}
+
+.bbs-party-invite-link__label {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.bbs-party-invite-link__url {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px !important;
+    font-size: 12px;
+    color: #0f766e;
+}
+
+.bbs-party-invite-link__copy-btn {
+    flex-shrink: 0;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    margin: -4px -4px -4px 0;
     color: #0f766e !important;
 }
 
@@ -928,6 +975,24 @@ a.bbs-entity-card:hover {
 @media (max-width: 768px) {
     .bbs-party-hero .ant-card-body {
         padding: 18px 16px !important;
+    }
+
+    .bbs-party-invite,
+    .bbs-party-invite-link {
+        padding: 10px 12px;
+    }
+
+    .bbs-party-invite-link {
+        padding-right: 8px;
+    }
+
+    .bbs-party-invite .ant-typography-copy {
+        min-width: 36px;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-inline-start: auto;
     }
 
     .bbs-party-item {
