@@ -26,6 +26,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run Go tests before image build
+        run: go test ./...
+
       - name: Set up QEMU (for cross-build)
         uses: docker/setup-qemu-action@v3
 
