@@ -35,9 +35,6 @@ jobs:
       - name: Run Go tests before image build
         run: go test ./...
 
-      - name: Set up QEMU (for cross-build)
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
