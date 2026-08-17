@@ -45,6 +45,12 @@ func (h *Handler) registerPartyRoutes(group *gin.RouterGroup) {
 	group.POST("/party", h.createParty)
 }
 
+type partyMemberResponse struct {
+	ID       uint64    `json:"id"`
+	Username string    `json:"username"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
 func (h *Handler) archiveParty(c *gin.Context) {
 	party, _, ok := h.ownerParty(c, false)
 	if !ok {
@@ -355,12 +361,9 @@ func (h *Handler) partyMembers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var members []struct {
-		ID       uint64 `json:"id"`
-		Username string `json:"username"`
-	}
+	members := make([]partyMemberResponse, 0)
 	join := fmt.Sprintf("JOIN %s pm ON pm.user_id = %s.id", h.table("party_member"), h.table("user"))
-	if err := h.db.WithContext(c).Table(h.table("user")).Joins(join).Where("pm.party_id = ?", party.ID).Select(h.table("user") + ".id, " + h.table("user") + ".username").Scan(&members).Error; err != nil {
+	if err := h.db.WithContext(c).Table(h.table("user")).Joins(join).Where("pm.party_id = ?", party.ID).Select(h.table("user") + ".id, " + h.table("user") + ".username, pm.joined_at").Scan(&members).Error; err != nil {
 		legacyServiceError(c, err)
 		return
 	}
@@ -372,8 +375,11 @@ func (h *Handler) partyInfo(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var members []gin.H
-	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT u.id, u.username FROM %s pm JOIN %s u ON pm.user_id=u.id WHERE pm.party_id=?", h.table("party_member"), h.table("user")), party.ID).Scan(&members)
+	members := make([]partyMemberResponse, 0)
+	if err := h.db.WithContext(c).Raw(fmt.Sprintf("SELECT u.id, u.username, pm.joined_at FROM %s pm JOIN %s u ON pm.user_id=u.id WHERE pm.party_id=?", h.table("party_member"), h.table("user")), party.ID).Scan(&members).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"party": party, "members": members, "base_currency": party.BaseCurrency, "supported_currencies": decodeCurrencies(party), "all_currencies": h.availableCurrencies(c)}})
 }
 
@@ -382,8 +388,11 @@ func (h *Handler) showParty(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var members []gin.H
-	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT u.id, u.username, pm.joined_at FROM %s pm JOIN %s u ON pm.user_id=u.id WHERE pm.party_id=?", h.table("party_member"), h.table("user")), party.ID).Scan(&members)
+	members := make([]partyMemberResponse, 0)
+	if err := h.db.WithContext(c).Raw(fmt.Sprintf("SELECT u.id, u.username, pm.joined_at FROM %s pm JOIN %s u ON pm.user_id=u.id WHERE pm.party_id=?", h.table("party_member"), h.table("user")), party.ID).Scan(&members).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
 	var rows []struct {
 		ID            uint64 `json:"id"`
 		Description   string `json:"description"`
@@ -394,7 +403,10 @@ func (h *Handler) showParty(c *gin.Context) {
 		PayerName     string `json:"payer_name"`
 		InitiatorName string `json:"initiator_name"`
 	}
-	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT i.id,i.description,i.amount,i.paid,i.userid,i.initiator,p.username payer_name,iu.username initiator_name FROM %s i JOIN %s p ON i.userid=p.id JOIN %s iu ON i.initiator=iu.id WHERE i.party_id=?", h.table("item"), h.table("user"), h.table("user")), party.ID).Scan(&rows)
+	if err := h.db.WithContext(c).Raw(fmt.Sprintf("SELECT i.id,i.description,i.amount,i.paid,i.userid,i.initiator,p.username payer_name,iu.username initiator_name FROM %s i JOIN %s p ON i.userid=p.id JOIN %s iu ON i.initiator=iu.id WHERE i.party_id=?", h.table("item"), h.table("user"), h.table("user")), party.ID).Scan(&rows).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
 	items := make([]gin.H, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, gin.H{"id": row.ID, "description": row.Description, "amount": row.Amount, "paid": row.Paid, "userid": row.UserID, "initiator": row.Initiator, "payer_name": row.PayerName, "initiator_name": row.InitiatorName, "is_my_item": row.UserID == user.ID || row.Initiator == user.ID})

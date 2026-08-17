@@ -33,6 +33,12 @@ type PartyItem = {
   is_my_item?: boolean;
 };
 
+type PartyMember = {
+  id?: number;
+  username?: string | null;
+  joined_at?: string | null;
+};
+
 type PartyData = {
   party?: {
     name?: string;
@@ -44,7 +50,7 @@ type PartyData = {
     created_at?: string;
   };
   isOwner?: boolean;
-  members?: { id: number; username: string; joined_at?: string }[];
+  members?: Array<PartyMember | null>;
   items?: PartyItem[];
   currencySymbol?: string;
 };
@@ -111,7 +117,7 @@ export function PartyShowPage() {
   const archived = !!party?.archived_at;
   const sym = data?.currencySymbol || '¥';
   const isOwner = data?.isOwner === true;
-  const members = data?.members || [];
+  const members = (data?.members || []).filter((member): member is PartyMember => member != null);
   const items = data?.items || [];
 
   const inviteUrl = party?.invite_code ? buildPartyInviteUrl(party.invite_code) : '';
@@ -477,21 +483,24 @@ export function PartyShowPage() {
               <Typography.Text type="secondary">暂无成员</Typography.Text>
             ) : (
               <ul className="bbs-party-member-list">
-                {members.map((m) => (
-                  <li key={m.id} className="bbs-party-member">
-                    <Avatar size={36} style={{background: '#e0f2fe', color: '#0369a1', flexShrink: 0}}>
-                      {m.username.charAt(0).toUpperCase()}
-                    </Avatar>
-                    <div className="bbs-party-member__info">
-                      <Typography.Text strong>{m.username}</Typography.Text>
-                      {m.joined_at ? (
-                        <Typography.Text type="secondary" style={{fontSize: 12, display: 'block'}}>
-                          {m.joined_at}
-                        </Typography.Text>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
+                {members.map((m, index) => {
+                  const username = m.username?.trim() || (m.id != null ? `用户 ${m.id}` : '未知用户');
+                  return (
+                    <li key={m.id ?? `${username}-${index}`} className="bbs-party-member">
+                      <Avatar size={36} style={{background: '#e0f2fe', color: '#0369a1', flexShrink: 0}}>
+                        {username.charAt(0).toUpperCase()}
+                      </Avatar>
+                      <div className="bbs-party-member__info">
+                        <Typography.Text strong>{username}</Typography.Text>
+                        {m.joined_at ? (
+                          <Typography.Text type="secondary" style={{fontSize: 12, display: 'block'}}>
+                            {m.joined_at}
+                          </Typography.Text>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </SurfaceCard>
