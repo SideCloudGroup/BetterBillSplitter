@@ -131,6 +131,17 @@ type AdminPartyOption = {
   archived_at?: string | null;
 };
 
+function useDebouncedValue<T>(value: T, delay = 350): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, value]);
+
+  return debounced;
+}
+
 function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
   const {message: messageApi, modal} = App.useApp();
   const [userQuery, setUserQuery] = useState('');
@@ -142,9 +153,13 @@ function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
   const [userLoading, setUserLoading] = useState(false);
   const [partyLoading, setPartyLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const debouncedUserQuery = useDebouncedValue(userQuery.trim());
+  const debouncedPartyQuery = useDebouncedValue(partyQuery.trim());
+  const userSearching = userLoading || userQuery.trim() !== debouncedUserQuery;
+  const partySearching = partyLoading || partyQuery.trim() !== debouncedPartyQuery;
 
   useEffect(() => {
-    const query = userQuery.trim();
+    const query = debouncedUserQuery;
     if (!query) {
       setUsers([]);
       setUserLoading(false);
@@ -152,24 +167,29 @@ function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
     }
     const controller = new AbortController();
     setUserLoading(true);
-    const timer = window.setTimeout(() => {
-      void apiJson<{ ret: number; data?: { users?: AdminUserOption[] } }>(
-        `/admin/user/search?q=${encodeURIComponent(query)}`,
-        {signal: controller.signal},
-      ).then((data) => setUsers(data.ret === 1 ? data.data?.users || [] : []))
-        .catch((error: unknown) => {
-          if (!(error instanceof DOMException && error.name === 'AbortError')) messageApi.error('搜索用户失败');
-        })
-        .finally(() => setUserLoading(false));
-    }, 300);
+    void (async () => {
+      try {
+        const data = await apiJson<{ ret: number; data?: { users?: AdminUserOption[] } }>(
+          `/admin/user/search?q=${encodeURIComponent(query)}`,
+          {signal: controller.signal},
+        );
+        if (!controller.signal.aborted) setUsers(data.ret === 1 ? data.data?.users || [] : []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setUsers([]);
+          messageApi.error(error instanceof Error ? error.message : '搜索用户失败');
+        }
+      } finally {
+        if (!controller.signal.aborted) setUserLoading(false);
+      }
+    })();
     return () => {
-      window.clearTimeout(timer);
       controller.abort();
     };
-  }, [messageApi, userQuery]);
+  }, [debouncedUserQuery]);
 
   useEffect(() => {
-    const query = partyQuery.trim();
+    const query = debouncedPartyQuery;
     if (!query) {
       setParties([]);
       setPartyLoading(false);
@@ -177,21 +197,26 @@ function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
     }
     const controller = new AbortController();
     setPartyLoading(true);
-    const timer = window.setTimeout(() => {
-      void apiJson<{ ret: number; data?: { parties?: AdminPartyOption[] } }>(
-        `/admin/party/search?q=${encodeURIComponent(query)}`,
-        {signal: controller.signal},
-      ).then((data) => setParties(data.ret === 1 ? data.data?.parties || [] : []))
-        .catch((error: unknown) => {
-          if (!(error instanceof DOMException && error.name === 'AbortError')) messageApi.error('搜索派对失败');
-        })
-        .finally(() => setPartyLoading(false));
-    }, 300);
+    void (async () => {
+      try {
+        const data = await apiJson<{ ret: number; data?: { parties?: AdminPartyOption[] } }>(
+          `/admin/party/search?q=${encodeURIComponent(query)}`,
+          {signal: controller.signal},
+        );
+        if (!controller.signal.aborted) setParties(data.ret === 1 ? data.data?.parties || [] : []);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setParties([]);
+          messageApi.error(error instanceof Error ? error.message : '搜索派对失败');
+        }
+      } finally {
+        if (!controller.signal.aborted) setPartyLoading(false);
+      }
+    })();
     return () => {
-      window.clearTimeout(timer);
       controller.abort();
     };
-  }, [messageApi, partyQuery]);
+  }, [debouncedPartyQuery]);
 
   const forceJoin = async () => {
     if (userId == null || partyId == null) {
@@ -237,15 +262,23 @@ function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
             showSearch
             allowClear
             value={userId}
+            searchValue={userQuery}
             placeholder="搜索用户名或用户 ID"
             filterOption={false}
-            loading={userLoading}
-            notFoundContent={userQuery.trim() ? '没有匹配用户' : '请先输入搜索内容'}
+            loading={userSearching}
+            notFoundContent={userSearching ? <Spin size="small"/> : userQuery.trim() ? '没有匹配用户' : '请先输入搜索内容'}
             options={users.map((user) => ({
               value: user.id,
               label: `${user.username}（ID ${user.id}${user.is_admin ? '，管理员' : ''}）`,
             }))}
-            onSearch={setUserQuery}
+            onSearch={(value) => {
+              setUserQuery(value);
+              if (value.trim() !== debouncedUserQuery) setUsers([]);
+            }}
+            onClear={() => {
+              setUserQuery('');
+              setUsers([]);
+            }}
             onChange={(value) => setUserId(value)}
             style={{display: 'block', marginTop: 8}}
           />
@@ -256,16 +289,24 @@ function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
             showSearch
             allowClear
             value={partyId}
+            searchValue={partyQuery}
             placeholder="搜索派对名称或派对 ID"
             filterOption={false}
-            loading={partyLoading}
-            notFoundContent={partyQuery.trim() ? '没有匹配派对' : '请先输入搜索内容'}
+            loading={partySearching}
+            notFoundContent={partySearching ? <Spin size="small"/> : partyQuery.trim() ? '没有匹配派对' : '请先输入搜索内容'}
             options={parties.map((party) => ({
               value: party.id,
               disabled: party.archived_at != null,
               label: `${party.name}（ID ${party.id}，${party.member_count ?? 0} 人${party.archived_at ? '，已归档' : ''}）`,
             }))}
-            onSearch={setPartyQuery}
+            onSearch={(value) => {
+              setPartyQuery(value);
+              if (value.trim() !== debouncedPartyQuery) setParties([]);
+            }}
+            onClear={() => {
+              setPartyQuery('');
+              setParties([]);
+            }}
             onChange={(value) => setPartyId(value)}
             style={{display: 'block', marginTop: 8}}
           />
