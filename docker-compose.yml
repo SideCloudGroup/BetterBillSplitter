@@ -2,14 +2,15 @@ services:
   web:
     image: ghcr.io/sidecloudgroup/betterbillsplitter:latest
     ports:
-      - "127.0.0.1:${WEB_PORT}:80"
+      - "127.0.0.1:17985:8000"
     volumes:
-      - .env:/var/www/html/.env
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data/archive:/app/data/archive
     depends_on:
       mariadb:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://127.0.0.1/" ]
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8000/healthz" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -25,11 +26,14 @@ services:
     volumes:
       - ./data/mariadb/data:/var/lib/mysql
       - ./data/mariadb/conf:/etc/mysql/conf.d
-    env_file:
-      - .env
+    environment:
+      MARIADB_ROOT_PASSWORD: change-me-root
+      MARIADB_DATABASE: expense
+      MARIADB_USER: expense
+      MARIADB_PASSWORD: change-me
     restart: always
     healthcheck:
-      test: [ "CMD", "mariadb-admin", "-h", "localhost", "-u${MARIADB_USER}", "-p${MARIADB_PASSWORD}", "ping" ]
+      test: [ "CMD-SHELL", "mariadb-admin -h localhost -u$${MARIADB_USER} -p$${MARIADB_PASSWORD} ping" ]
       interval: 10s
       timeout: 5s
       retries: 3

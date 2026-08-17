@@ -1,0 +1,60 @@
+name: better-bill-splitter
+env: local
+
+log:
+  level: INFO
+  format: text
+  path: stdout
+  with_trace: false
+  add_source: false
+
+http_server:
+  addr: ":8000"
+  shutdown_timeout: 30s
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+  health_path: /healthz
+  access_log:
+    enabled: true
+  pprof:
+    enabled: false
+
+dao:
+  database:
+    default:
+      driver: mysql
+      # 示例：用户名:密码@tcp(主机:端口)/数据库?参数
+      # 修改数据库账号时，请同步修改 docker-compose.yml 的 mariadb.environment。
+      dsn: "expense:change-me@tcp(mariadb:3306)/expense?charset=utf8mb4&parseTime=True&loc=Local"
+  redis:
+    default:
+      addr: "127.0.0.1:6379"
+      password: ""
+      db: 0
+      read_timeout: 3s
+      write_timeout: 3s
+
+app:
+  timezone: Asia/Shanghai
+  database:
+    table_prefix: ""
+    migration_table: migrations
+  redis:
+    enabled: false
+    key_prefix: "better-bill-splitter:"
+  # Set these explicitly behind a reverse proxy. If omitted, the server keeps
+  # legacy behavior and derives them from the current request host.
+  webauthn:
+    rp_id: ""
+    rp_origins: []
+    display_name: ""
+  jwt:
+    # 生产环境必须替换为足够长的随机值，例如：openssl rand -hex 32
+    secret: "change-me-to-a-long-random-string"
+    access_ttl: 15m
+    refresh_ttl: 720h
+    issuer: ""
+    refresh_cookie_name: refresh_token
+    refresh_cookie_path: /api
+    refresh_cookie_secure: false

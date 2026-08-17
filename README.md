@@ -1,226 +1,81 @@
-# 🎉 BetterBillSplitter - 智能团体开支管理系统
+# BetterBillSplitter
 
-<div align="center" style="display: flex; align-items: center; justify-content: center;">
-  <img src="public/static/imgs/taffynya_agadgqyaaofp2fq.png" width="64" style="margin-right: 20px;">
-  <h2 style="margin: 0 20px;">派对费用管理专家</h2>
-  <img src="public/static/imgs/taffynya_agadvgmaauwawfq.png" width="64" style="margin-left: 20px;">
-</div>
+多人费用分摊应用。后端使用 Go、[gocraft](https://github.com/micoya/gocraft)、Gin 与 GORM，前端使用 React、Vite 和 Ant Design。
 
-一个现代化的团体开支管理程序：后端基于 **ThinkPHP 8**，前端为 **React + Vite** 单页应用，支持**派对创建与管理**、多人协作记账，并智能计算最优支付方案。
+## 功能
 
-## ✨ 核心功能特性
+- 派对创建、邀请、成员管理与归档快照
+- 精确到分的多人记账、自定义分摊与多币种换算
+- 债务抵消和最优支付方案、CSV 下载与批量结清
+- Access Token + 可轮换 Refresh Token
+- TOTP、Passkey/WebAuthn、FIDO2 二步验证
+- 数字验证码、Cloudflare Turnstile、hCaptcha 与 Cap
+- 管理员用户、派对、币种和系统设置管理
 
-### 🎯 **派对系统 (Party System)**
+金额在 Go 中始终使用整数分计算，不经过浮点数。核心金额与结算算法包含确定性、边界和随机属性测试。
 
-- **创建派对**：用户可以创建专属派对，设置派对名称、描述和时区
-- **邀请加入**：通过唯一邀请码邀请其他用户加入派对
-- **派对管理**：派对所有者可以管理成员、查看统计、生成最优支付方案
-- **时区支持**：支持全球时区设置，自动处理夏令时/冬令时
+## Docker 部署
 
-### 💰 **智能记账系统**
-
-- **多货币支持**：支持多种货币类型
-- **团体分摊**：支持多人分摊同一笔费用
-- **实时统计**：实时显示每个人的收支情况
-- **支付状态管理**：发起人可以标记项目为已支付
-- **高精度计算**：基于 bcmath 提供的高精度数学计算，确保财务数据的准确性
-
-### 🧮 **最优支付算法**
-
-- **智能计算**：自动计算最优化的支付方案，减少转账次数
-- **高精度计算**：使用 bcmath 进行精确的金额计算和汇率转换
-- **数据导出**：支持导出最优支付数据
-- **批量清空**：派对所有者可以批量标记项目为已支付
-
-### 👥 **用户管理系统**
-
-- **多级权限**：支持普通用户和管理员角色
-- **安全认证**：支持多种MFA认证方式（TOTP、WebAuthn、FIDO）
-- **密码管理**：管理员可以修改用户密码和权限
-
-## 🎪 使用场景
-
-### 🏖️ **旅行出游**
-
-- 朋友聚会、家庭旅行、公司团建
-- 记录住宿、餐饮、交通等各项费用
-- 自动计算每个人应支付的金额
-
-### 🏠 **合租生活**
-
-- 室友间的日常开支分摊
-- 水电费、网费、清洁费等费用管理
-- 定期结算，避免费用纠纷
-
-### 🎓 **学生群体**
-
-- 班级活动、社团聚会费用管理
-- 学习资料、活动门票等费用分摊
-- 简单易用的界面，适合学生使用
-
-### 💼 **商务合作**
-
-- 项目团队的费用管理
-- 出差、会议等商务活动费用
-- 专业的费用统计和报表
-
-### 🎉 **派对活动**
-
-- 生日派对、节日聚会费用管理
-- 活动策划、场地租赁等费用分摊
-- 支持时区设置，适合国际化活动
-
-## 🚀 快速开始
-
-### 📋 环境要求
-
-请确保服务器已安装 [Docker](https://docs.docker.com/get-docker/) 与 [Docker Compose](https://docs.docker.com/compose/install/)（Docker Desktop 通常已包含 Compose）。
-
-### 🐳 使用 Docker 部署
-
-镜像内已包含 **Caddy**（Web 服务与静态资源）、**PHP-FPM**（API）及构建好的前端页面，无需单独部署 Nginx 或手动构建前端。
-
-Compose 默认启动两个服务：
-
-| 服务 | 说明 |
-|------|------|
-| `web` | 应用入口，监听容器内 `80`，映射到宿主机 `WEB_PORT` |
-| `mariadb` | 数据库，数据持久化在 `./data/mariadb/` |
-
-#### 1. 下载配置文件
+需要 Docker 与 Docker Compose。
 
 ```bash
-mkdir expense && cd expense
-wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/.example.env -O .env
-wget https://github.com/SideCloudGroup/BetterBillSplitter/raw/refs/heads/main/docker-compose.yml
-```
-
-#### 2. 配置环境变量
-
-编辑 `.env`，至少修改以下项（生产环境务必使用强密码与随机密钥）：
-
-| 变量 | 说明 |
-|------|------|
-| `WEB_PORT` | 本机访问端口，默认 `17985` |
-| `MARIADB_*` | 数据库账号、密码、库名 |
-| `JWT_SECRET` | JWT 签名密钥，可用 `openssl rand -hex 32` 生成 |
-| `JWT_REFRESH_COOKIE_SECURE` | 仅 HTTPS 部署时设为 `true`；本地 HTTP 保持 `false` |
-| `APP_TIMEZONE` | 应用默认时区 |
-
-#### 3. 启动服务
-
-```bash
-# 拉取镜像并启动
+# 先修改 config.yaml 中的数据库 DSN 和 JWT secret；如果修改数据库密码，
+# 同步修改 docker-compose.yml 中 mariadb.environment。
 docker compose up -d
-
-# 查看状态
-docker compose ps
-
-# 查看日志（应用）
-docker compose logs -f web
 ```
 
-启动后访问：`http://127.0.0.1:<WEB_PORT>/`（将 `<WEB_PORT>` 替换为 `.env` 中的值）。
+默认访问地址是 `http://127.0.0.1:17985`。Compose 启动：
 
-#### 4. 配置反向代理（可选）
+- `web`：Go API 与构建后的 SPA，容器端口 8000；
+- `mariadb`：数据持久化在 `./data/mariadb`；
+- 归档快照持久化在 `./data/archive`。
 
-容器内 **Caddy** 已负责站点与 API 路由。若需 HTTPS 或绑定域名，可在宿主机再套一层反向代理（如 Caddy、Nginx、Traefik）或 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)，将流量转发到 `127.0.0.1:<WEB_PORT>`。
+升级旧 PHP 版本时直接复用原 MariaDB 数据目录。Go 迁移器沿用 Phinx 的 `migrations` 表和原版本号，已执行的 PHP 迁移不会重复运行，后续 Go 迁移会接着写入同一张表。
 
-#### 5. 创建管理员账户
+创建管理员：
 
 ```bash
-docker compose exec web php think createAdmin <username> <password>
+docker compose exec web better-bill-splitter createAdmin admin 'replace-with-a-strong-password'
 ```
 
-### 🔧 从源码构建镜像（可选）
+反向代理或正式域名部署 Passkey 时，建议设置：
+
+```yaml
+app:
+  webauthn:
+    rp_id: bills.example.com
+    rp_origins: ["https://bills.example.com"]
+    display_name: BetterBillSplitter
+  jwt:
+    refresh_cookie_secure: true
+```
+
+## 本地开发
+
+后端需要 Go 1.25.7 或更高版本及 MariaDB：
 
 ```bash
-git clone https://github.com/SideCloudGroup/BetterBillSplitter.git
-cd BetterBillSplitter
-docker build -t betterbillsplitter:latest .
+go test ./...
+go run ./cmd/server
 ```
 
-构建过程会自动完成前端 `npm run build` 与 `composer install`。本地调试 Compose 时，可将 `docker-compose.yml` 中 `web.image` 改为上述标签，或增加 `build: .` 配置。
+前端开发服务器会把 `/api` 与 `/captcha` 代理到 `127.0.0.1:8000`：
 
-## 🎯 使用指南
+```bash
+cd frontend
+npm ci
+npm run dev
+```
 
-### 👤 用户注册与登录
+生产构建：
 
-1. **注册账户**：访问注册页面创建新账户
-2. **登录系统**：使用用户名和密码登录
-3. **MFA认证**：支持TOTP、WebAuthn、FIDO等多种二次认证方式
+```bash
+npm --prefix frontend run build
+go build -o better-bill-splitter ./cmd/server
+```
 
-### 🎉 创建和管理派对
+所有应用配置集中在 `config.yaml`，不再读取 `.env`。数据库和 Redis 连接均使用 gocraft DAO 配置；DSN 中已经提供可直接修改的 MariaDB 样例。
 
-#### 创建派对
+## CI
 
-1. 点击"创建派对"按钮
-2. 填写派对名称、描述
-3. 选择时区（支持全球时区）
-4. 系统自动生成邀请码
-
-#### 加入派对
-
-1. 使用邀请码加入派对
-2. 查看派对成员和费用统计
-3. 参与费用分摊和支付
-
-#### 派对管理
-
-- **查看统计**：实时查看派对费用统计
-- **成员管理**：查看和管理派对成员
-- **最优支付**：生成最优化的支付方案
-- **数据导出**：导出支付数据用于结算
-
-### 💰 费用管理
-
-#### 添加费用项目
-
-1. 选择派对
-2. 填写项目描述和金额
-3. 选择分摊用户
-4. 选择货币类型
-5. 提交保存
-
-#### 费用统计
-
-- **个人统计**：查看个人收支情况
-- **派对统计**：查看派对整体费用
-- **支付状态**：跟踪已支付和未支付项目
-- **高精度计算**：所有金额计算都基于 bcmath 高精度数学库，确保计算结果的准确性
-
-### 🧮 最优支付计算
-
-#### 查看最优方案
-
-1. 在派对页面点击"查看最优支付"
-2. 查看优化后的支付方案
-3. 下载支付数据用于结算
-
-**算法特点：**
-
-- **高精度计算**：基于 bcmath 的精确数学运算，避免浮点数精度误差
-- **智能优化**：自动计算最优化的支付方案，减少转账次数
-- **多货币支持**：支持不同货币间的精确汇率转换
-
-#### 批量操作
-
-- **下载数据**：所有成员都可以下载支付数据
-- **清空记录**：只有派对所有者可以清空已支付记录
-
-## 📞 支持与反馈
-
-如果您在使用过程中遇到问题，欢迎：
-
-- 🐛 [提交 Issue](https://github.com/SideCloudGroup/BetterBillSplitter/issues)
-
-## 📄 许可证
-
-本项目采用 [MIT License](LICENSE) 开源许可证。
-
----
-
-<div align="center">
-  <p>🎉 <strong>让每一次聚会都变得简单而快乐！</strong> 🎉</p>
-  <p>💖 感谢使用 BetterBillSplitter 💖</p>
-</div>
+所有分支 push 和所有 pull request 都运行 `go test ./...`。发布镜像的工作流也会先执行完整测试，测试成功后才构建并推送多架构镜像。

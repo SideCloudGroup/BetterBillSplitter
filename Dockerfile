@@ -1,103 +1,45 @@
 # syntax=docker/dockerfile:1
 
-# -----------------------------------------------------------------------------
-# Stage 1: 构建 React/Vite 前端 → public/spa
-# -----------------------------------------------------------------------------
-FROM node:22-alpine AS frontend
-
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /src/frontend
-
 COPY frontend/package.json frontend/package-lock.json ./
-
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
-
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY frontend/ ./
-
 RUN npm run build
 
-# -----------------------------------------------------------------------------
-# Stage 2: Composer 依赖
-# -----------------------------------------------------------------------------
-FROM composer:2 AS vendor
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY cmd/ cmd/
+COPY internal/ internal/
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go test ./...
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /out/better-bill-splitter ./cmd/server
 
+FROM --platform=$BUILDPLATFORM alpine:3.22 AS runtime-assets
+RUN apk add --no-cache ca-certificates tzdata \
+    && mkdir -p /rootfs/app/data/archive
+
+FROM --platform=$TARGETPLATFORM alpine:3.22 AS web
 WORKDIR /app
-
-COPY composer.json ./
-
-RUN --mount=type=cache,target=/tmp/composer-cache \
-    COMPOSER_CACHE_DIR=/tmp/composer-cache \
-    composer install \
-      --no-dev \
-      --no-interaction \
-      --no-progress \
-      --prefer-dist \
-      --no-scripts \
-      --ignore-platform-reqs
-
-COPY . .
-
-RUN composer dump-autoload --optimize --no-dev --no-interaction
-
-# -----------------------------------------------------------------------------
-# Stage 3: 单容器 — Caddy + PHP-FPM
-# -----------------------------------------------------------------------------
-FROM php:8.4-fpm-alpine AS web
-
-RUN set -eux; \
-    apk add --no-cache --virtual .build-deps \
-      $PHPIZE_DEPS \
-      libpng-dev \
-      libjpeg-turbo-dev \
-      freetype-dev \
-      libzip-dev \
-      oniguruma-dev \
-      libxml2-dev; \
-    apk add --no-cache \
-      libpng \
-      libjpeg-turbo \
-      freetype \
-      libzip \
-      oniguruma \
-      curl \
-      netcat-openbsd; \
-    docker-php-ext-configure gd --with-freetype --with-jpeg; \
-    docker-php-ext-install -j"$(nproc)" \
-      pdo_mysql \
-      mbstring \
-      exif \
-      pcntl \
-      zip \
-      gd \
-      bcmath; \
-    mkdir -p /var/run/php; \
-    chown -R www-data:www-data /var/run/php; \
-    sed -i 's#;pid = run/php-fpm.pid#pid = /var/run/php/php-fpm.pid#' \
-      /usr/local/etc/php-fpm.conf; \
-    sed -i 's#listen = 9000#listen = 127.0.0.1:9000#' \
-      /usr/local/etc/php-fpm.d/www.conf; \
-    apk del .build-deps
-
-COPY --from=caddy:2-alpine /usr/bin/caddy /usr/bin/caddy
-
-WORKDIR /var/www/html
-
-COPY deploy/ /tmp/deploy/
-RUN mkdir -p /etc/caddy \
-    && install -m 644 /tmp/deploy/Caddyfile /etc/caddy/Caddyfile \
-    && install -m 755 /tmp/deploy/start-web.sh /usr/local/bin/start-web.sh \
-    && install -m 755 /tmp/deploy/entrypoint.sh /entrypoint.sh \
-    && caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile \
-    && mkdir -p runtime/cache runtime/log runtime/temp runtime/session \
-    && chown -R www-data:www-data runtime \
-    && chmod -R 775 runtime \
-    && rm -rf /tmp/deploy
-
-COPY . .
-COPY --link --from=vendor /app/vendor ./vendor
-COPY --link --from=frontend /src/public/spa ./public/spa
-
-EXPOSE 80
-
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/usr/local/bin/start-web.sh"]
+COPY --from=backend /out/better-bill-splitter /usr/local/bin/better-bill-splitter
+# timezoneNames reads the canonical Go zone list; time.LoadLocation uses tzdata.
+COPY --from=backend /usr/local/go/lib/time/zoneinfo.zip /usr/local/go/lib/time/zoneinfo.zip
+COPY --from=runtime-assets /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=runtime-assets /usr/share/zoneinfo/ /usr/share/zoneinfo/
+COPY --from=runtime-assets --chown=65532:65532 /rootfs/app/data/ ./data/
+COPY --from=frontend --chown=65532:65532 /src/public/spa ./public/spa
+COPY public/favicon.ico public/robots.txt ./public/
+COPY config.yaml ./config.yaml
+USER 65532:65532
+EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:8000/healthz || exit 1
+ENTRYPOINT ["/usr/local/bin/better-bill-splitter"]

@@ -5,12 +5,12 @@ import {CrownOutlined, TeamOutlined, UserDeleteOutlined} from '@ant-design/icons
 import {apiDelete, apiFetch} from '@/api/client';
 import {EmptyState, PageShell, SectionTitle, SurfaceCard} from '@/components/ui';
 
-type MemberRow = { id?: number; username?: string };
+type MemberRow = { id?: number; username?: string | null };
 
 type MembersResponse = {
   ret: number;
   msg?: string;
-  users?: MemberRow[];
+  users?: Array<MemberRow | null>;
   is_owner?: boolean;
   owner_id?: number;
   is_archived?: boolean;
@@ -38,7 +38,7 @@ export function PartyMembersPage() {
         setUsers([]);
         return;
       }
-      setUsers(res.users || []);
+      setUsers((res.users || []).filter((member): member is MemberRow => member != null));
       setIsOwner(res.is_owner === true);
       setOwnerId(res.owner_id ?? null);
       setArchived(res.is_archived === true);
