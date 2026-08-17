@@ -24,9 +24,9 @@ dao:
   database:
     default:
       driver: mysql
-      # Production should set DAO__DATABASE__DEFAULT__DSN. The legacy
-      # MARIADB_* variables are also supported during the transition.
-      dsn: ""
+      # 示例：用户名:密码@tcp(主机:端口)/数据库?参数
+      # 修改数据库账号时，请同步修改 docker-compose.yml 的 mariadb.environment。
+      dsn: "expense:change-me@tcp(mariadb:3306)/expense?charset=utf8mb4&parseTime=True&loc=Local"
   redis:
     default:
       addr: "127.0.0.1:6379"
@@ -50,7 +50,8 @@ app:
     rp_origins: []
     display_name: ""
   jwt:
-    secret: ""
+    # 生产环境必须替换为足够长的随机值，例如：openssl rand -hex 32
+    secret: "change-me-to-a-long-random-string"
     access_ttl: 15m
     refresh_ttl: 720h
     issuer: ""

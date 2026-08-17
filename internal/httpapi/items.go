@@ -335,8 +335,13 @@ WHERE pm.user_id=? AND (i.userid=? OR i.initiator=?)`, h.table("item"), h.table(
 FROM %s i JOIN %s p ON i.party_id=p.id JOIN %s pm ON i.party_id=pm.party_id
 JOIN %s du ON i.userid=du.id JOIN %s iu ON i.initiator=iu.id
 WHERE pm.user_id=? AND (i.initiator=? OR i.userid=?) AND NOT(i.initiator=? AND i.userid=?)
+AND i.created_at>=?
 ORDER BY i.created_at DESC LIMIT 20`, h.table("item"), h.table("party"), h.table("party_member"), h.table("user"), h.table("user"))
-	_ = h.db.WithContext(c).Raw(activityQuery, user.ID, user.ID, user.ID, user.ID, user.ID).Scan(&activities).Error
+	activitySince := recentActivityCutoff(time.Now())
+	if err := h.db.WithContext(c).Raw(activityQuery, user.ID, user.ID, user.ID, user.ID, user.ID, activitySince).Scan(&activities).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
 	recentActivity := make([]gin.H, 0, len(activities))
 	for _, row := range activities {
 		initiated := row.Initiator == user.ID
@@ -357,6 +362,12 @@ ORDER BY i.created_at DESC LIMIT 20`, h.table("item"), h.table("party"), h.table
 		recent = recent[:5]
 	}
 	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"user": user, "parties": parties, "stats": stats, "recentParties": recent, "recentActivity": recentActivity, "currencySymbol": defaultCurrency.Symbol, "currencyCode": strings.ToUpper(defaultCurrency.Code)}})
+}
+
+const recentActivityWindow = 30 * 24 * time.Hour
+
+func recentActivityCutoff(now time.Time) time.Time {
+	return now.Add(-recentActivityWindow)
 }
 
 func defaultDecimal(value string) string {

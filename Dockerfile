@@ -31,4 +31,6 @@ COPY public/favicon.ico public/robots.txt ./public/
 COPY config.yaml ./config.yaml
 USER app
 EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:8000/healthz || exit 1
 ENTRYPOINT ["/usr/local/bin/better-bill-splitter"]

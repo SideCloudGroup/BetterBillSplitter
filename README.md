@@ -19,8 +19,8 @@
 需要 Docker 与 Docker Compose。
 
 ```bash
-cp .example.env .env
-# 修改数据库密码和 JWT_SECRET
+# 先修改 config.yaml 中的数据库 DSN 和 JWT secret；如果修改数据库密码，
+# 同步修改 docker-compose.yml 中 mariadb.environment。
 docker compose up -d
 ```
 
@@ -40,11 +40,14 @@ docker compose exec web better-bill-splitter createAdmin admin 'replace-with-a-s
 
 反向代理或正式域名部署 Passkey 时，建议设置：
 
-```dotenv
-APP__WEBAUTHN__RP_ID=bills.example.com
-APP__WEBAUTHN__RP_ORIGINS=https://bills.example.com
-APP__WEBAUTHN__DISPLAY_NAME=BetterBillSplitter
-JWT_REFRESH_COOKIE_SECURE=true
+```yaml
+app:
+  webauthn:
+    rp_id: bills.example.com
+    rp_origins: ["https://bills.example.com"]
+    display_name: BetterBillSplitter
+  jwt:
+    refresh_cookie_secure: true
 ```
 
 ## 本地开发
@@ -71,7 +74,7 @@ npm --prefix frontend run build
 go build -o better-bill-splitter ./cmd/server
 ```
 
-主要配置在 `config.yaml`；数据库和 Redis 连接均使用 gocraft DAO 配置。环境变量使用双下划线表示层级，例如 `DAO__DATABASE__DEFAULT__DSN`、`DAO__REDIS__DEFAULT__DB` 与 `APP__REDIS__KEY_PREFIX`。
+所有应用配置集中在 `config.yaml`，不再读取 `.env`。数据库和 Redis 连接均使用 gocraft DAO 配置；DSN 中已经提供可直接修改的 MariaDB 样例。
 
 ## CI
 

@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -44,15 +42,15 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	cfg, err := goconfig.Load[appconfig.Config](ctx, goconfig.WithEnvFile(".env"))
+	// gocraft defaults to loading .env; an explicit empty path keeps config.yaml
+	// as the only file-based configuration source.
+	cfg, err := goconfig.Load[appconfig.Config](ctx, goconfig.WithEnvFile(""))
 	if err != nil {
 		return err
 	}
 	if cfg.DAO == nil || cfg.HTTPServer == nil {
 		return errors.New("config: dao and http_server are required")
 	}
-	applyLegacyDatabaseEnv(cfg)
-	applyLegacyAppEnv(cfg)
 	if !cfg.App.Redis.Enabled {
 		cfg.DAO.Redis = nil
 	}
@@ -140,56 +138,4 @@ func createAdmin(ctx context.Context, db *gorm.DB, prefix, username, password st
 	}
 	fmt.Printf("administrator %s created (id=%d, uuid=%s)\n", user.Username, user.ID, user.UUID)
 	return nil
-}
-
-func applyLegacyDatabaseEnv(cfg *goconfig.Config[appconfig.Config]) {
-	dbCfg, ok := cfg.DAO.Database["default"]
-	if !ok || dbCfg.DSN != "" {
-		return
-	}
-	host := envOr("MARIADB_HOST", "127.0.0.1")
-	port := envOr("MARIADB_PORT", "3306")
-	database := os.Getenv("MARIADB_DATABASE")
-	user := envOr("MARIADB_USER", "root")
-	password := os.Getenv("MARIADB_PASSWORD")
-	if database == "" {
-		return
-	}
-	dbCfg.DSN = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		url.QueryEscape(user), url.QueryEscape(password), host, port, strings.TrimSpace(database))
-	cfg.DAO.Database["default"] = dbCfg
-}
-
-func applyLegacyAppEnv(cfg *goconfig.Config[appconfig.Config]) {
-	if cfg.App.Timezone == "" {
-		cfg.App.Timezone = envOr("APP_TIMEZONE", "Asia/Shanghai")
-	}
-	if cfg.App.JWT.Secret == "" {
-		cfg.App.JWT.Secret = os.Getenv("JWT_SECRET")
-	}
-	if cfg.App.JWT.Issuer == "" {
-		cfg.App.JWT.Issuer = os.Getenv("JWT_ISS")
-	}
-	if value := os.Getenv("JWT_ACCESS_TTL"); value != "" {
-		if seconds, err := time.ParseDuration(value + "s"); err == nil {
-			cfg.App.JWT.AccessTTL = seconds
-		}
-	}
-	if value := os.Getenv("JWT_REFRESH_TTL"); value != "" {
-		if seconds, err := time.ParseDuration(value + "s"); err == nil {
-			cfg.App.JWT.RefreshTTL = seconds
-		}
-	}
-	if value := os.Getenv("JWT_REFRESH_COOKIE_SECURE"); value != "" {
-		if secure, err := strconv.ParseBool(value); err == nil {
-			cfg.App.JWT.RefreshCookieSecure = secure
-		}
-	}
-}
-
-func envOr(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
 }
