@@ -1,6 +1,9 @@
 package httpapi
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,7 +65,8 @@ func TestRegisterAllRoutesDoesNotConflict(t *testing.T) {
 		"GET /api/user/party/:partyId/items", "DELETE /api/user/party/:partyId",
 		"GET /api/user/party/:partyId", "GET /api/user/party", "POST /api/user/party",
 		"GET /api/admin", "GET /api/admin/user", "POST /api/admin/user/change-password",
-		"POST /api/admin/user/toggle-admin", "GET /api/admin/party/:partyId/members",
+		"GET /api/admin/user/search", "POST /api/admin/user/toggle-admin", "GET /api/admin/party/search",
+		"POST /api/admin/party/force-join", "GET /api/admin/party/:partyId/members",
 		"POST /api/admin/party/members", "GET /api/admin/party", "GET /api/admin/currency/add-form",
 		"POST /api/admin/currency/add", "GET /api/admin/currency/edit-form", "POST /api/admin/currency/edit",
 		"DELETE /api/admin/currency/delete", "GET /api/admin/currencies", "GET /api/admin/setting",
@@ -71,6 +75,19 @@ func TestRegisterAllRoutesDoesNotConflict(t *testing.T) {
 	for _, route := range expected {
 		if !routes[route] {
 			t.Errorf("legacy API route is missing: %s", route)
+		}
+	}
+
+	for _, route := range engine.Routes() {
+		if !strings.HasPrefix(route.Path, "/api/admin") {
+			continue
+		}
+		path := strings.ReplaceAll(route.Path, ":partyId", "1")
+		request := httptest.NewRequest(route.Method, path, nil)
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("admin route without access token must return 401: %s %s returned %d", route.Method, route.Path, response.Code)
 		}
 	}
 }

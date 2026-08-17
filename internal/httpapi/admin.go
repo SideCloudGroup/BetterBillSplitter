@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/auth"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/model"
@@ -21,8 +23,11 @@ func (h *Handler) registerAdminRoutes(engine *gin.Engine) {
 	group := engine.Group("/api/admin", h.AuthRequired(), h.AdminRequired())
 	group.GET("", h.adminIndex)
 	group.GET("/user", h.adminUsers)
+	group.GET("/user/search", h.adminSearchUsers)
 	group.POST("/user/change-password", h.adminChangePassword)
 	group.POST("/user/toggle-admin", h.adminToggleAdmin)
+	group.GET("/party/search", h.adminSearchParties)
+	group.POST("/party/force-join", h.adminForceJoinParty)
 	group.GET("/party/:partyId/members", h.adminPartyMembers)
 	group.POST("/party/members", h.adminGetPartyMembers)
 	group.GET("/party", h.adminParties)
@@ -43,8 +48,9 @@ func (h *Handler) adminIndex(c *gin.Context) {
 	h.db.WithContext(c).Table(h.table("item")).Count(&totalItems)
 	h.db.WithContext(c).Table(h.table("item")).Where("paid=1").Count(&paidItems)
 	h.db.WithContext(c).Table(h.table("party")).Count(&totalParties)
-	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM (SELECT p.id FROM %s p JOIN %s pm ON p.id=pm.party_id GROUP BY p.id HAVING COUNT(pm.user_id)>1) active", h.table("party"), h.table("party_member"))).Scan(&activeParties)
-	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT COUNT(DISTINCT userid) FROM %s WHERE created_at>=?", h.table("item")), time.Now().AddDate(0, 0, -30)).Scan(&activeUsers)
+	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT COUNT(*) FROM (SELECT p.id FROM %s p JOIN %s pm ON p.id=pm.party_id WHERE p.archived_at IS NULL GROUP BY p.id HAVING COUNT(pm.user_id)>1) active", h.table("party"), h.table("party_member"))).Scan(&activeParties)
+	activitySince := time.Now().AddDate(0, 0, -30)
+	h.db.WithContext(c).Raw(fmt.Sprintf("SELECT COUNT(DISTINCT active.user_id) FROM (SELECT userid AS user_id FROM %s WHERE created_at>=? UNION SELECT initiator AS user_id FROM %s WHERE created_at>=?) active", h.table("item"), h.table("item")), activitySince, activitySince).Scan(&activeUsers)
 	unpaidItems := totalItems - paidItems
 	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{
 		"totalUsers": totalUsers, "adminUsers": adminUsers, "regularUsers": totalUsers - adminUsers,
@@ -66,6 +72,107 @@ func (h *Handler) adminUsers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"users": users}})
+}
+
+func (h *Handler) adminSearchUsers(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	users := make([]struct {
+		ID       uint64 `json:"id"`
+		Username string `json:"username"`
+		IsAdmin  bool   `gorm:"column:is_admin" json:"is_admin"`
+	}, 0)
+	if query == "" {
+		c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"users": users}})
+		return
+	}
+	db := h.db.WithContext(c).Table(h.table("user")).Select("id, username, is_admin")
+	if id, err := strconv.ParseUint(query, 10, 64); err == nil {
+		db = db.Where("username LIKE ? OR id = ?", "%"+query+"%", id)
+	} else {
+		db = db.Where("username LIKE ?", "%"+query+"%")
+	}
+	if err := db.Order("id").Limit(20).Scan(&users).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"users": users}})
+}
+
+func (h *Handler) adminSearchParties(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	parties := make([]struct {
+		ID          uint64     `json:"id"`
+		Name        string     `json:"name"`
+		OwnerID     uint64     `gorm:"column:owner_id" json:"owner_id"`
+		OwnerName   string     `gorm:"column:owner_name" json:"owner_name"`
+		MemberCount int64      `gorm:"column:member_count" json:"member_count"`
+		ArchivedAt  *time.Time `gorm:"column:archived_at" json:"archived_at"`
+	}, 0)
+	if query == "" {
+		c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"parties": parties}})
+		return
+	}
+	partyTable, userTable, memberTable := h.table("party"), h.table("user"), h.table("party_member")
+	db := h.db.WithContext(c).Table(partyTable + " p").
+		Select("p.id, p.name, p.owner_id, owner.username AS owner_name, p.archived_at, COUNT(pm.id) AS member_count").
+		Joins("JOIN " + userTable + " owner ON owner.id = p.owner_id").
+		Joins("LEFT JOIN " + memberTable + " pm ON pm.party_id = p.id")
+	if id, err := strconv.ParseUint(query, 10, 64); err == nil {
+		db = db.Where("p.name LIKE ? OR p.id = ?", "%"+query+"%", id)
+	} else {
+		db = db.Where("p.name LIKE ?", "%"+query+"%")
+	}
+	if err := db.Group("p.id, p.name, p.owner_id, owner.username, p.archived_at").Order("p.id DESC").Limit(20).Scan(&parties).Error; err != nil {
+		legacyServiceError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"parties": parties}})
+}
+
+type adminForceJoinInput struct {
+	UserID  uint64 `json:"user_id" form:"user_id"`
+	PartyID uint64 `json:"party_id" form:"party_id"`
+}
+
+func (h *Handler) adminForceJoinParty(c *gin.Context) {
+	var input adminForceJoinInput
+	if c.ShouldBind(&input) != nil || input.UserID == 0 || input.PartyID == 0 {
+		legacyError(c, "请选择用户和派对")
+		return
+	}
+	var user model.User
+	if err := h.db.WithContext(c).Table(h.table("user")).First(&user, input.UserID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			legacyError(c, "用户不存在")
+			return
+		}
+		legacyServiceError(c, err)
+		return
+	}
+	var party model.Party
+	if err := h.db.WithContext(c).Table(h.table("party")).First(&party, input.PartyID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			legacyError(c, "派对不存在")
+			return
+		}
+		legacyServiceError(c, err)
+		return
+	}
+	if party.ArchivedAt != nil {
+		legacyError(c, "已归档的派对不能添加成员")
+		return
+	}
+	member := model.PartyMember{PartyID: party.ID, UserID: user.ID, JoinedAt: time.Now()}
+	result := h.db.WithContext(c).Table(h.table("party_member")).Clauses(clause.OnConflict{DoNothing: true}).Create(&member)
+	if result.Error != nil {
+		legacyServiceError(c, result.Error)
+		return
+	}
+	if result.RowsAffected == 0 {
+		legacyError(c, "该用户已经是派对成员")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "msg": fmt.Sprintf("已将用户 %s 加入派对 %s", user.Username, party.Name)})
 }
 
 type adminPasswordInput struct {

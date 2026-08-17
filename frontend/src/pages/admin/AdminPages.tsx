@@ -1,14 +1,16 @@
-import {Fragment, useEffect, useState} from 'react';
+import {Fragment, useCallback, useEffect, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   App,
   Button,
+  Col,
   Divider,
   Form,
   Input,
   InputNumber,
   message,
   Modal,
+  Row,
   Select,
   Space,
   Spin,
@@ -16,29 +18,43 @@ import {
   Table,
   Typography,
 } from 'antd';
-import {DollarOutlined, SettingOutlined, TeamOutlined, UserOutlined} from '@ant-design/icons';
+import {DollarOutlined, SettingOutlined, TeamOutlined, UserAddOutlined, UserOutlined} from '@ant-design/icons';
 import {apiFetch, apiJson, apiPostJson} from '@/api/client';
-import {PageShell, SurfaceCard} from '@/components/ui';
+import {PageShell, StatCard, SurfaceCard} from '@/components/ui';
+
+type AdminMetrics = {
+  totalUsers?: number;
+  adminUsers?: number;
+  regularUsers?: number;
+  activeUsers?: number;
+  userActivityRate?: number;
+  totalParties?: number;
+  activeParties?: number;
+  partyActivityRate?: number;
+  totalItems?: number;
+  paidItems?: number;
+  unpaidItems?: number;
+  paymentCompletionRate?: number;
+};
 
 export function AdminHomePage() {
-  const [rows, setRows] = useState<Record<string, string | number>>({});
+  const {message: messageApi} = App.useApp();
+  const [metrics, setMetrics] = useState<AdminMetrics>({});
   const [loading, setLoading] = useState(true);
   const nav = useNavigate();
 
   useEffect(() => {
     void (async () => {
-      const data = await apiJson<{ ret: number; data?: Record<string, string | number> }>('/admin');
+      const data = await apiJson<{ ret: number; data?: AdminMetrics }>('/admin');
       if (data.ret !== 1) {
-        message.error('无权限');
+        messageApi.error('无权限');
         nav('/');
         return;
       }
-      setRows(data.data || {});
+      setMetrics(data.data || {});
       setLoading(false);
     })();
-  }, [nav]);
-
-  const keys = Object.keys(rows);
+  }, [messageApi, nav]);
 
   return (
     <PageShell
@@ -69,19 +85,198 @@ export function AdminHomePage() {
         </Space>
       }
     >
-      <SurfaceCard>
-        <Table
-          rowKey="k"
-          pagination={false}
-          dataSource={keys.map((k) => ({k, v: rows[k]}))}
-          locale={{emptyText: '暂无数据'}}
-          columns={[
-            {title: '键', dataIndex: 'k'},
-            {title: '值', dataIndex: 'v', align: 'right', render: (x) => String(x)},
-          ]}
-        />
+      <SurfaceCard title="用户" style={{marginBottom: 16}}>
+        <Typography.Paragraph type="secondary">
+          活跃用户指最近 30 天内作为发起人或付款人参与过账目的用户；活跃率为活跃用户占全部用户的比例。
+        </Typography.Paragraph>
+        <Row gutter={[12, 12]}>
+          <Col xs={24} sm={12} lg={6}><StatCard title="用户总数" value={metrics.totalUsers ?? 0} suffix="人"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="普通用户" value={metrics.regularUsers ?? 0} suffix="人" accent="info"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="管理员" value={metrics.adminUsers ?? 0} suffix="人" accent="warning"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="近 30 天活跃用户" value={metrics.activeUsers ?? 0} suffix={`人 · ${metrics.userActivityRate ?? 0}%`}/></Col>
+        </Row>
+      </SurfaceCard>
+
+      <SurfaceCard title="派对" style={{marginBottom: 16}}>
+        <Typography.Paragraph type="secondary">
+          活跃派对指未归档且至少有 2 名成员的派对；活跃率为活跃派对占全部派对的比例。
+        </Typography.Paragraph>
+        <Row gutter={[12, 12]}>
+          <Col xs={24} sm={12}><StatCard title="派对总数" value={metrics.totalParties ?? 0} suffix="个" accent="info"/></Col>
+          <Col xs={24} sm={12}><StatCard title="活跃派对" value={metrics.activeParties ?? 0} suffix={`个 · ${metrics.partyActivityRate ?? 0}%`} accent="success"/></Col>
+        </Row>
+      </SurfaceCard>
+
+      <SurfaceCard title="账目">
+        <Typography.Paragraph type="secondary">
+          支付完成率按已支付账目笔数计算，不代表金额比例。
+        </Typography.Paragraph>
+        <Row gutter={[12, 12]}>
+          <Col xs={24} sm={12} lg={6}><StatCard title="账目总数" value={metrics.totalItems ?? 0} suffix="笔" accent="info"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="已支付账目" value={metrics.paidItems ?? 0} suffix="笔" accent="success"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="待支付账目" value={metrics.unpaidItems ?? 0} suffix="笔" accent="warning"/></Col>
+          <Col xs={24} sm={12} lg={6}><StatCard title="支付完成率" value={metrics.paymentCompletionRate ?? 0} suffix="%"/></Col>
+        </Row>
       </SurfaceCard>
     </PageShell>
+  );
+}
+
+type AdminUserOption = { id: number; username: string; is_admin?: boolean };
+type AdminPartyOption = {
+  id: number;
+  name: string;
+  owner_name?: string;
+  member_count?: number;
+  archived_at?: string | null;
+};
+
+function AdminForceJoinCard({onJoined}: { onJoined: () => Promise<void> }) {
+  const {message: messageApi, modal} = App.useApp();
+  const [userQuery, setUserQuery] = useState('');
+  const [partyQuery, setPartyQuery] = useState('');
+  const [users, setUsers] = useState<AdminUserOption[]>([]);
+  const [parties, setParties] = useState<AdminPartyOption[]>([]);
+  const [userId, setUserId] = useState<number>();
+  const [partyId, setPartyId] = useState<number>();
+  const [userLoading, setUserLoading] = useState(false);
+  const [partyLoading, setPartyLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const query = userQuery.trim();
+    if (!query) {
+      setUsers([]);
+      setUserLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setUserLoading(true);
+    const timer = window.setTimeout(() => {
+      void apiJson<{ ret: number; data?: { users?: AdminUserOption[] } }>(
+        `/admin/user/search?q=${encodeURIComponent(query)}`,
+        {signal: controller.signal},
+      ).then((data) => setUsers(data.ret === 1 ? data.data?.users || [] : []))
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === 'AbortError')) messageApi.error('搜索用户失败');
+        })
+        .finally(() => setUserLoading(false));
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [messageApi, userQuery]);
+
+  useEffect(() => {
+    const query = partyQuery.trim();
+    if (!query) {
+      setParties([]);
+      setPartyLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setPartyLoading(true);
+    const timer = window.setTimeout(() => {
+      void apiJson<{ ret: number; data?: { parties?: AdminPartyOption[] } }>(
+        `/admin/party/search?q=${encodeURIComponent(query)}`,
+        {signal: controller.signal},
+      ).then((data) => setParties(data.ret === 1 ? data.data?.parties || [] : []))
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === 'AbortError')) messageApi.error('搜索派对失败');
+        })
+        .finally(() => setPartyLoading(false));
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [messageApi, partyQuery]);
+
+  const forceJoin = async () => {
+    if (userId == null || partyId == null) {
+      messageApi.warning('请先搜索并选择用户和派对');
+      return;
+    }
+    const user = users.find((item) => item.id === userId);
+    const party = parties.find((item) => item.id === partyId);
+    modal.confirm({
+      title: '确认强制添加成员？',
+      content: `将用户“${user?.username || userId}”加入派对“${party?.name || partyId}”。`,
+      okText: '确认加入',
+      cancelText: '取消',
+      onOk: async () => {
+        setSubmitting(true);
+        try {
+          const response = await apiPostJson('/admin/party/force-join', {user_id: userId, party_id: partyId});
+          const result = (await response.json()) as { ret: number; msg?: string };
+          if (result.ret !== 1) {
+            messageApi.error(result.msg || '添加失败');
+            return;
+          }
+          messageApi.success(result.msg || '成员已添加');
+          setUserId(undefined);
+          setUserQuery('');
+          await onJoined();
+        } finally {
+          setSubmitting(false);
+        }
+      },
+    });
+  };
+
+  return (
+    <SurfaceCard title="强制添加派对成员" style={{marginBottom: 16}}>
+      <Typography.Paragraph type="secondary">
+        分别输入用户名或用户 ID、派对名称或派对 ID，搜索并选择后添加。已归档派对不可修改。
+      </Typography.Paragraph>
+      <Row gutter={[12, 12]} align="bottom">
+        <Col xs={24} md={9}>
+          <Typography.Text strong>用户</Typography.Text>
+          <Select<number>
+            showSearch
+            allowClear
+            value={userId}
+            placeholder="搜索用户名或用户 ID"
+            filterOption={false}
+            loading={userLoading}
+            notFoundContent={userQuery.trim() ? '没有匹配用户' : '请先输入搜索内容'}
+            options={users.map((user) => ({
+              value: user.id,
+              label: `${user.username}（ID ${user.id}${user.is_admin ? '，管理员' : ''}）`,
+            }))}
+            onSearch={setUserQuery}
+            onChange={(value) => setUserId(value)}
+            style={{display: 'block', marginTop: 8}}
+          />
+        </Col>
+        <Col xs={24} md={9}>
+          <Typography.Text strong>派对</Typography.Text>
+          <Select<number>
+            showSearch
+            allowClear
+            value={partyId}
+            placeholder="搜索派对名称或派对 ID"
+            filterOption={false}
+            loading={partyLoading}
+            notFoundContent={partyQuery.trim() ? '没有匹配派对' : '请先输入搜索内容'}
+            options={parties.map((party) => ({
+              value: party.id,
+              disabled: party.archived_at != null,
+              label: `${party.name}（ID ${party.id}，${party.member_count ?? 0} 人${party.archived_at ? '，已归档' : ''}）`,
+            }))}
+            onSearch={setPartyQuery}
+            onChange={(value) => setPartyId(value)}
+            style={{display: 'block', marginTop: 8}}
+          />
+        </Col>
+        <Col xs={24} md={6}>
+          <Button type="primary" icon={<UserAddOutlined/>} loading={submitting} block onClick={() => void forceJoin()}>
+            添加成员
+          </Button>
+        </Col>
+      </Row>
+    </SurfaceCard>
   );
 }
 
@@ -177,16 +372,19 @@ export function AdminPartiesPage() {
   const [rows, setRows] = useState<{ id: number; name: string; member_count?: number; base_currency?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    void (async () => {
-      const data = await apiJson<{ ret: number; data?: { parties?: typeof rows } }>('/admin/party');
-      if (data.ret === 1) setRows(data.data?.parties || []);
-      setLoading(false);
-    })();
+  const load = useCallback(async () => {
+    const data = await apiJson<{ ret: number; data?: { parties?: typeof rows } }>('/admin/party');
+    if (data.ret === 1) setRows(data.data?.parties || []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <PageShell title="派对管理" back={{to: '/admin'}} loading={loading} maxWidth={1200}>
+      <AdminForceJoinCard onJoined={load}/>
       <SurfaceCard>
         <Table
           rowKey="id"
@@ -239,10 +437,14 @@ export function AdminPartyMembersPage() {
 
   return (
     <PageShell title={`成员 — ${party?.name || ''}`} back={{to: '/admin/parties'}} loading={loading}>
-      <SurfaceCard title="统计" style={{marginBottom: 16}}>
-        <pre style={{margin: 0, whiteSpace: 'pre-wrap', fontSize: 13, color: '#475569'}}>
-          {JSON.stringify(stats, null, 2)}
-        </pre>
+      <SurfaceCard title="账目统计" style={{marginBottom: 16}}>
+        <Typography.Paragraph type="secondary">完成率按已支付账目笔数计算。</Typography.Paragraph>
+        <Row gutter={[12, 12]}>
+          <Col xs={12} md={6}><StatCard title="账目总数" value={Number(stats.total_items ?? 0)} accent="info"/></Col>
+          <Col xs={12} md={6}><StatCard title="已支付" value={Number(stats.paid_items ?? 0)} accent="success"/></Col>
+          <Col xs={12} md={6}><StatCard title="待支付" value={Number(stats.unpaid_items ?? 0)} accent="warning"/></Col>
+          <Col xs={12} md={6}><StatCard title="支付完成率" value={Number(stats.payment_completion_rate ?? 0)} suffix="%"/></Col>
+        </Row>
       </SurfaceCard>
       <SurfaceCard>
         <Table
