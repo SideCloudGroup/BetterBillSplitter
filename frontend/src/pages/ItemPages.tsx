@@ -4,6 +4,7 @@ import {Alert, Badge, Button, message, Popconfirm, Space, Tabs} from 'antd';
 import {AccountBookOutlined, DeleteOutlined, PlusOutlined} from '@ant-design/icons';
 import {apiDelete, apiJson, apiPostForm} from '@/api/client';
 import {formatMoney} from '@/lib/formatMoney';
+import {formatPartyTime} from '@/lib/formatTime';
 import {EmptyState, EntityCard, LedgerList, PageShell, SectionTitle, SummaryStrip, SurfaceCard,} from '@/components/ui';
 
 type PartyRow = {
@@ -123,6 +124,7 @@ export function ItemPartyPage() {
   const [err, setErr] = useState<string | null>(null);
   const [party, setParty] = useState<{
     name?: string;
+    timezone?: string;
     currency_symbol?: string;
     is_archived?: boolean;
   } | null>(null);
@@ -296,7 +298,7 @@ export function ItemPartyPage() {
             return {
               id: it.id,
               title: it.description || '（无描述）',
-              meta: `付款方：${it.payer_name} · 发起方：${it.initiator_name}${it.created_at ? ` · ${it.created_at}` : ''}`,
+              meta: `付款方：${it.payer_name} · 发起方：${it.initiator_name}${it.created_at ? ` · ${formatPartyTime(it.created_at, party?.timezone)}` : ''}`,
               amount: formatMoney(sym, it.amount),
               paid,
               action:

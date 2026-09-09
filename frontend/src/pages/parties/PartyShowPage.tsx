@@ -20,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import {apiDelete, apiFetch, apiJson, downloadAuthenticated} from '@/api/client';
 import {formatMoney, parseAmount} from '@/lib/formatMoney';
+import {formatPartyTime} from '@/lib/formatTime';
 import {buildPartyInviteUrl} from '@/lib/partyInvite';
 import {EmptyState, LedgerList, PageShell, StatCard, SurfaceCard} from '@/components/ui';
 
@@ -494,7 +495,7 @@ export function PartyShowPage() {
                         <Typography.Text strong>{username}</Typography.Text>
                         {m.joined_at ? (
                           <Typography.Text type="secondary" style={{fontSize: 12, display: 'block'}}>
-                            {m.joined_at}
+                            {formatPartyTime(m.joined_at, party?.timezone)}
                           </Typography.Text>
                         ) : null}
                       </div>

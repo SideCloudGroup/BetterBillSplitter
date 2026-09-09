@@ -26,6 +26,21 @@ type RefreshToken struct {
 
 func (RefreshToken) TableName() string { return "refresh_tokens" }
 
+type APIToken struct {
+	ID          uint64     `gorm:"primaryKey" json:"id"`
+	UserID      uint64     `gorm:"column:user_id" json:"user_id"`
+	Name        string     `json:"name"`
+	TokenHash   string     `gorm:"column:token_hash" json:"-"`
+	TokenPrefix string     `gorm:"column:token_prefix" json:"token_prefix"`
+	ExpiresAt   *time.Time `gorm:"column:expires_at" json:"expires_at"`
+	RevokedAt   *time.Time `gorm:"column:revoked_at" json:"revoked_at"`
+	LastUsedAt  *time.Time `gorm:"column:last_used_at" json:"last_used_at"`
+	CreatedAt   time.Time  `gorm:"column:created_at" json:"created_at"`
+	CreatedIP   *string    `gorm:"column:created_ip" json:"-"`
+}
+
+func (APIToken) TableName() string { return "api_tokens" }
+
 type Setting struct {
 	ID    uint64 `gorm:"primaryKey"`
 	Key   string `gorm:"column:key"`

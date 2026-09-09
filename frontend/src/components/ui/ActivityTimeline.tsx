@@ -1,6 +1,7 @@
 import {useNavigate} from 'react-router-dom';
 import {Flex, Tag, Timeline, Typography} from 'antd';
 import {formatMoney, parseAmount} from '@/lib/formatMoney';
+import {formatPartyTime} from '@/lib/formatTime';
 import {EmptyState} from './EmptyState';
 
 export type ActivityItem = {
@@ -11,6 +12,7 @@ export type ActivityItem = {
   created_at?: string;
   party_id: number;
   party_name: string;
+  timezone?: string;
   currency_symbol: string;
   type: 'initiated' | 'assigned';
   counterparty_name: string;
@@ -75,7 +77,7 @@ export function ActivityTimeline({items}: ActivityTimelineProps) {
                   </Typography.Text>
                   <Typography.Text type="secondary" style={{fontSize: 13}}>
                     {title} · {it.party_name}
-                    {it.created_at ? ` · ${it.created_at}` : ''}
+                    {it.created_at ? ` · ${formatPartyTime(it.created_at, it.timezone)}` : ''}
                   </Typography.Text>
                 </div>
                 <Flex align="center" gap={8} wrap="wrap">

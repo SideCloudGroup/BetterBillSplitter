@@ -1,0 +1,176 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BetterBillSplitter API",
+    "version": "1.0.0",
+    "description": "使用账户页创建的 Bearer PAT（bbs_ 前缀）访问。不接受浏览器登录 JWT。"
+  },
+  "servers": [{ "url": "/" }],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "PAT",
+        "description": "账户页创建的 API 令牌"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "Party": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "timezone": { "type": "string" },
+          "base_currency": { "type": "string" },
+          "supported_currencies": { "type": "array", "items": { "type": "string" } },
+          "archived": { "type": "boolean" },
+          "role": { "type": "string", "enum": ["owner", "member"] },
+          "owner_id": { "type": "integer" }
+        }
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string" },
+          "joined_at": { "type": "string", "format": "date-time" },
+          "is_owner": { "type": "boolean" }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "description": { "type": "string" },
+          "amount": { "type": "string" },
+          "paid": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "payer_id": { "type": "integer" },
+          "payer_name": { "type": "string" },
+          "initiator_id": { "type": "integer" },
+          "initiator_name": { "type": "string" }
+        }
+      },
+      "CreateItem": {
+        "type": "object",
+        "required": ["description", "currency"],
+        "properties": {
+          "description": { "type": "string" },
+          "currency": { "type": "string", "description": "货币代码，如 cny" },
+          "amount": { "type": "string", "description": "均摊时每人金额" },
+          "user_ids": { "type": "array", "items": { "type": "integer" } },
+          "splits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["user_id", "amount"],
+              "properties": {
+                "user_id": { "type": "integer" },
+                "amount": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/me": {
+      "get": {
+        "summary": "当前用户",
+        "operationId": "getMe",
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "未授权", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/v1/parties": {
+      "get": {
+        "summary": "列出派对",
+        "operationId": "listParties",
+        "responses": { "200": { "description": "OK" }, "401": { "description": "未授权" } }
+      }
+    },
+    "/api/v1/parties/{partyId}": {
+      "get": {
+        "summary": "派对详情",
+        "operationId": "getParty",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" }, "403": { "description": "非成员" }, "404": { "description": "不存在" } }
+      }
+    },
+    "/api/v1/parties/{partyId}/members": {
+      "get": {
+        "summary": "派对成员",
+        "operationId": "listMembers",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/parties/{partyId}/items": {
+      "get": {
+        "summary": "派对账目",
+        "operationId": "listItems",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "summary": "创建分账",
+        "operationId": "createItem",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateItem" } } }
+        },
+        "responses": { "200": { "description": "OK" }, "400": { "description": "参数错误" } }
+      }
+    },
+    "/api/v1/parties/{partyId}/payments": {
+      "get": {
+        "summary": "当前用户待付款",
+        "operationId": "listPayments",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/parties/{partyId}/settlement": {
+      "get": {
+        "summary": "最优支付方案",
+        "operationId": "getSettlement",
+        "parameters": [{ "name": "partyId", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/items/{id}": {
+      "patch": {
+        "summary": "标记已付/未付（仅发起方）",
+        "operationId": "updateItemPaid",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["paid"],
+                "properties": { "paid": { "type": "boolean" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "404": { "description": "未找到" } }
+      }
+    }
+  }
+}

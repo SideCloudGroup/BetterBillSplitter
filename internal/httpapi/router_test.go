@@ -54,6 +54,7 @@ func TestRegisterAllRoutesDoesNotConflict(t *testing.T) {
 		"GET /api/user/webauthn_reg", "POST /api/user/webauthn_reg", "DELETE /api/user/webauthn_reg/:id",
 		"GET /api/user/totp_reg", "POST /api/user/totp_reg", "DELETE /api/user/totp_reg",
 		"GET /api/user/fido_reg", "POST /api/user/fido_reg", "DELETE /api/user/fido_reg/:id",
+		"GET /api/user/tokens", "POST /api/user/tokens", "DELETE /api/user/tokens/:id",
 		"GET /api/user/party/create", "GET /api/user/party/join", "POST /api/user/party/join",
 		"GET /api/user/party/:partyId/users", "GET /api/user/party/:partyId/info",
 		"GET /api/user/party/:partyId/edit", "POST /api/user/party/:partyId/update",
@@ -71,6 +72,11 @@ func TestRegisterAllRoutesDoesNotConflict(t *testing.T) {
 		"POST /api/admin/currency/add", "GET /api/admin/currency/edit-form", "POST /api/admin/currency/edit",
 		"DELETE /api/admin/currency/delete", "GET /api/admin/currencies", "GET /api/admin/setting",
 		"POST /api/admin/setting",
+		"GET /api/v1/openapi.json", "GET /api/v1/docs", "GET /api/v1/me", "GET /api/v1/parties",
+		"GET /api/v1/parties/:partyId", "GET /api/v1/parties/:partyId/members",
+		"GET /api/v1/parties/:partyId/items", "POST /api/v1/parties/:partyId/items",
+		"GET /api/v1/parties/:partyId/payments", "GET /api/v1/parties/:partyId/settlement",
+		"PATCH /api/v1/items/:id", "POST /mcp", "GET /mcp", "DELETE /mcp", "PUT /mcp", "PATCH /mcp", "HEAD /mcp", "OPTIONS /mcp",
 	}
 	for _, route := range expected {
 		if !routes[route] {
