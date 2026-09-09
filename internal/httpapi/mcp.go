@@ -1,10 +1,7 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -13,8 +10,6 @@ import (
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/ledger"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/model"
 )
-
-const mcpProtocolVersion = "2026-07-28"
 
 type partyIDArgs struct {
 	PartyID uint64 `json:"party_id" jsonschema:"派对ID"`
@@ -36,14 +31,14 @@ type updatePaidArgs struct {
 
 func (h *Handler) registerMCP(engine *gin.Engine) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "better-bill-splitter", Version: "2.0.0"}, &mcp.ServerOptions{
-		Instructions: "BetterBillSplitter 派对分账。使用 PAT Bearer 鉴权。只支持 MCP 协议 2026-07-28，无 session。",
+		Instructions: "BetterBillSplitter 派对分账。使用 PAT Bearer 鉴权。Streamable HTTP 无状态：兼容 2026-07-28 与带 initialize 的旧协议，不维持 MCP session。",
 		Capabilities: &mcp.ServerCapabilities{},
 	})
 	h.addMCPTools(server)
 	inner := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
 	}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	engine.Any("/mcp", h.PATRequired(), gin.WrapH(mcpProtocolGate{next: inner}))
+	engine.Any("/mcp", h.PATRequired(), gin.WrapH(inner))
 }
 
 func (h *Handler) addMCPTools(server *mcp.Server) {
@@ -151,42 +146,4 @@ func requireMCPUser(ctx context.Context) (model.User, error) {
 		return model.User{}, &ledger.Error{Status: 401, Message: "未授权"}
 	}
 	return user, nil
-}
-
-type mcpProtocolGate struct {
-	next http.Handler
-}
-
-func (g mcpProtocolGate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Mcp-Session-Id") != "" {
-		http.Error(w, "MCP sessions are not supported", http.StatusBadRequest)
-		return
-	}
-	if ver := r.Header.Get("MCP-Protocol-Version"); ver != "" && ver != mcpProtocolVersion {
-		http.Error(w, "unsupported MCP protocol version", http.StatusBadRequest)
-		return
-	}
-	if r.Method == http.MethodPost && r.Body != nil {
-		body, err := io.ReadAll(io.LimitReader(r.Body, 2<<20))
-		_ = r.Body.Close()
-		if err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
-		}
-		r.Body = io.NopCloser(bytes.NewReader(body))
-		var probe struct {
-			ID     json.RawMessage `json:"id"`
-			Method string          `json:"method"`
-		}
-		if json.Unmarshal(body, &probe) == nil && probe.Method == "initialize" {
-			id := probe.ID
-			if len(id) == 0 {
-				id = []byte("null")
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":` + string(id) + `,"error":{"code":-32022,"message":"Unsupported protocol version; use 2026-07-28"}}`))
-			return
-		}
-	}
-	g.next.ServeHTTP(w, r)
 }
