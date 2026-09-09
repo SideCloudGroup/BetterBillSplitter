@@ -28,3 +28,7 @@ export function formatPartyTime(value?: string | null, timezone?: string | null)
   }
   return value;
 }
+
+export function formatLocalTime(value?: string | null): string {
+  return formatPartyTime(value, Intl.DateTimeFormat().resolvedOptions().timeZone);
+}

@@ -1,9 +1,10 @@
 import {type ReactNode, useCallback, useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Avatar, Button, Card, Col, Flex, Form, Input, message, Modal, QRCode, Row, Tag, Typography,} from 'antd';
+import {Avatar, Button, Card, Col, DatePicker, Flex, Form, Input, message, Modal, QRCode, Row, Space, Table, Tag, Typography,} from 'antd';
 import {
   DeleteOutlined,
   ApiOutlined,
+  BookOutlined,
   KeyOutlined,
   LockOutlined,
   MobileOutlined,
@@ -15,6 +16,7 @@ import {
 import {type PublicKeyCredentialCreationOptionsJSON, startRegistration} from '@simplewebauthn/browser';
 import {apiDelete, apiFetch, apiJson, apiPostForm, apiPostJson} from '@/api/client';
 import {useAuth} from '@/context/AuthContext';
+import {formatLocalTime} from '@/lib/formatTime';
 import {PageShell, SurfaceCard} from '@/components/ui';
 
 type Device = { id: number; name?: string };
@@ -113,6 +115,8 @@ export function ProfilePage() {
   const [tokens, setTokens] = useState<APITokenRow[]>([]);
   const [tokenSaving, setTokenSaving] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [createTokenOpen, setCreateTokenOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -300,12 +304,12 @@ export function ProfilePage() {
     });
   };
 
-  const createToken = async (v: {name: string; expires_at?: string}) => {
+  const createToken = async (v: {name: string; expires_at?: {endOf: (unit: 'day') => {toISOString: () => string}}}) => {
     setTokenSaving(true);
     try {
       const res = await apiPostJson('/user/tokens', {
         name: v.name.trim(),
-        expires_at: v.expires_at ? `${v.expires_at}T23:59:59Z` : '',
+        expires_at: v.expires_at ? v.expires_at.endOf('day').toISOString() : '',
       });
       const out = (await res.json()) as {ret: number; msg?: string; data?: {token?: string}};
       if (out.ret !== 1) {
@@ -313,6 +317,7 @@ export function ProfilePage() {
         return;
       }
       tokenForm.resetFields();
+      setCreateTokenOpen(false);
       setCreatedToken(out.data?.token || null);
       await load();
     } finally {
@@ -338,6 +343,22 @@ export function ProfilePage() {
   };
 
   const initial = user?.username?.charAt(0)?.toUpperCase() || '?';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const mcpUrl = `${origin}/mcp`;
+  const openapiUrl = `${origin}/api/v1/openapi.json`;
+  const swaggerUrl = `${origin}/api/v1/docs`;
+  const mcpConfig = JSON.stringify(
+    {
+      mcpServers: {
+        'better-bill-splitter': {
+          url: mcpUrl,
+          headers: {Authorization: 'Bearer bbs_你的令牌'},
+        },
+      },
+    },
+    null,
+    2,
+  );
 
   return (
     <PageShell title="账户与安全" subtitle="管理个人资料、登录密码与多因素认证" loading={loading} maxWidth={1040}>
@@ -521,51 +542,120 @@ export function ProfilePage() {
             API 访问令牌
           </span>
         }
-      >
-        <Typography.Paragraph type="secondary">
-          用于 OpenAPI 与 MCP。明文只显示一次。MCP 地址：
-          <Typography.Text code>{`${window.location.origin}/mcp`}</Typography.Text>
-          ，文档：
-          <Typography.Link href="/api/v1/docs" target="_blank">
-            Swagger
-          </Typography.Link>
-          {' / '}
-          <Typography.Link href="/api/v1/openapi.json" target="_blank">
-            openapi.json
-          </Typography.Link>
-          。请求头：Authorization: Bearer bbs_…
-        </Typography.Paragraph>
-        <Form form={tokenForm} layout="inline" onFinish={createToken} style={{marginBottom: 16, rowGap: 12}}>
-          <Form.Item name="name" rules={[{required: true, message: '请填写名称'}]}>
-            <Input placeholder="名称，如 Cursor" style={{width: 180}}/>
-          </Form.Item>
-          <Form.Item name="expires_at">
-            <Input type="date" placeholder="过期日期（可选）"/>
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={tokenSaving} icon={<PlusOutlined/>}>
+        extra={
+          <Space wrap>
+            <Button icon={<BookOutlined/>} onClick={() => setDocsOpen(true)}>
+              接入文档
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined/>}
+              onClick={() => {
+                tokenForm.resetFields();
+                setCreateTokenOpen(true);
+              }}
+            >
               创建令牌
             </Button>
-          </Form.Item>
-        </Form>
-        {tokens.length === 0 ? (
-          <Typography.Text type="secondary">还没有令牌</Typography.Text>
-        ) : (
-          <ul className="bbs-security-device-list">
-            {tokens.map((row) => (
-              <li key={row.id}>
-                <span>
-                  {row.name} · {row.token_prefix}…{row.expires_at ? ` · 过期 ${row.expires_at}` : ''}
-                  {row.last_used_at ? ` · 最近使用 ${row.last_used_at}` : ''}
-                </span>
-                <Button type="text" size="small" danger icon={<DeleteOutlined/>} onClick={() => revokeToken(row)}>
+          </Space>
+        }
+      >
+        <Table<APITokenRow>
+          rowKey="id"
+          size="middle"
+          dataSource={tokens}
+          pagination={false}
+          scroll={{x: 720}}
+          locale={{emptyText: '还没有令牌'}}
+          columns={[
+            {title: '名称', dataIndex: 'name', ellipsis: true},
+            {
+              title: '前缀',
+              dataIndex: 'token_prefix',
+              render: (prefix: string) => <Typography.Text code>{prefix}…</Typography.Text>,
+            },
+            {
+              title: '创建时间',
+              dataIndex: 'created_at',
+              render: (v: string | undefined) => formatLocalTime(v) || '—',
+            },
+            {
+              title: '最近使用',
+              dataIndex: 'last_used_at',
+              render: (v: string | null | undefined) => (v ? formatLocalTime(v) : '从未使用'),
+            },
+            {
+              title: '过期时间',
+              dataIndex: 'expires_at',
+              render: (v: string | null | undefined) => (v ? formatLocalTime(v) : '永不过期'),
+            },
+            {
+              title: '操作',
+              width: 88,
+              render: (_, row) => (
+                <Button type="link" danger size="small" onClick={() => revokeToken(row)}>
                   撤销
                 </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+              ),
+            },
+          ]}
+        />
       </SurfaceCard>
+
+      <Modal
+        title="创建 API 令牌"
+        open={createTokenOpen}
+        onCancel={() => setCreateTokenOpen(false)}
+        footer={null}
+        destroyOnHidden
+      >
+        <Form form={tokenForm} layout="vertical" onFinish={createToken}>
+          <Form.Item name="name" label="名称" rules={[{required: true, message: '请填写名称'}]}>
+            <Input placeholder="例如：Cursor" maxLength={64}/>
+          </Form.Item>
+          <Form.Item name="expires_at" label="过期日期" extra="留空表示不过期，过期时间为所选日期结束（本地时区）。">
+            <DatePicker style={{width: '100%'}} placeholder="可选"/>
+          </Form.Item>
+          <Button type="primary" htmlType="submit" loading={tokenSaving} block icon={<PlusOutlined/>}>
+            创建
+          </Button>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="接入文档"
+        open={docsOpen}
+        onCancel={() => setDocsOpen(false)}
+        footer={null}
+        width={560}
+      >
+        <Typography.Paragraph type="secondary" style={{marginBottom: 12}}>
+          使用 Bearer PAT 调用 OpenAPI 或 MCP，不要使用浏览器登录 JWT。明文令牌只在创建时显示一次。
+        </Typography.Paragraph>
+        <Typography.Text strong>MCP 地址</Typography.Text>
+        <Typography.Paragraph copyable={{text: mcpUrl}}>
+          <Typography.Text code>{mcpUrl}</Typography.Text>
+        </Typography.Paragraph>
+        <Typography.Text strong>鉴权请求头</Typography.Text>
+        <Typography.Paragraph copyable={{text: 'Authorization: Bearer bbs_…'}}>
+          <Typography.Text code>Authorization: Bearer bbs_…</Typography.Text>
+        </Typography.Paragraph>
+        <Space wrap style={{marginBottom: 16}}>
+          <Button href={swaggerUrl} target="_blank">
+            打开 Swagger
+          </Button>
+          <Button href={openapiUrl} target="_blank">
+            打开 openapi.json
+          </Button>
+        </Space>
+        <Typography.Text strong>MCP 客户端配置示例</Typography.Text>
+        <Typography.Paragraph>
+          <pre style={{margin: '8px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{mcpConfig}</pre>
+        </Typography.Paragraph>
+        <Typography.Paragraph copyable={{text: mcpConfig}} style={{marginBottom: 0}}>
+          复制配置
+        </Typography.Paragraph>
+      </Modal>
 
       <Modal
         title="请立即复制令牌"
