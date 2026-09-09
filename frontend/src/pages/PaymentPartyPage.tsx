@@ -3,6 +3,7 @@ import {useParams} from 'react-router-dom';
 import {WalletOutlined} from '@ant-design/icons';
 import {apiJson} from '@/api/client';
 import {formatMoney} from '@/lib/formatMoney';
+import {formatPartyTime} from '@/lib/formatTime';
 import {EmptyState, LedgerList, PageShell, SectionTitle, SummaryStrip, SurfaceCard} from '@/components/ui';
 
 type Item = { id: number; username: string; description: string; amount: string | number; created_at?: string };
@@ -12,7 +13,7 @@ export function PaymentPartyPage() {
   const partyId = Number(partyIdParam);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [party, setParty] = useState<{ name?: string; description?: string; currency_symbol?: string } | null>(null);
+  const [party, setParty] = useState<{ name?: string; description?: string; timezone?: string; currency_symbol?: string } | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState('');
 
@@ -60,7 +61,7 @@ export function PaymentPartyPage() {
           rows={items.map((it) => ({
             id: it.id,
             title: it.description || '（无描述）',
-            meta: `发起方：${it.username}${it.created_at ? ` · ${it.created_at}` : ''}`,
+            meta: `发起方：${it.username}${it.created_at ? ` · ${formatPartyTime(it.created_at, party?.timezone)}` : ''}`,
             amount: formatMoney(sym, it.amount),
           }))}
           empty={<EmptyState description="无待付条目"/>}

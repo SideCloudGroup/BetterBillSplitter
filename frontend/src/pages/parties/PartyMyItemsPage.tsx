@@ -4,6 +4,7 @@ import {Alert, Badge, Button, Col, Row, Space, Tabs, message} from 'antd';
 import {AccountBookOutlined, PlusOutlined, WalletOutlined} from '@ant-design/icons';
 import {apiJson, apiPostForm} from '@/api/client';
 import {formatMoney} from '@/lib/formatMoney';
+import {formatPartyTime} from '@/lib/formatTime';
 import {EmptyState, LedgerList, PageShell, StatCard, SurfaceCard} from '@/components/ui';
 
 type FilterKey = 'all' | 'my_initiated' | 'my_payment';
@@ -35,6 +36,7 @@ export function PartyMyItemsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [party, setParty] = useState<{
     name?: string;
+    timezone?: string;
     currency_symbol?: string;
     is_archived?: boolean;
   } | null>(null);
@@ -206,7 +208,7 @@ export function PartyMyItemsPage() {
             return {
               id: it.id,
               title: it.description || '（无描述）',
-              meta: `${metaText}${it.created_at ? ` · ${it.created_at}` : ''}`,
+              meta: `${metaText}${it.created_at ? ` · ${formatPartyTime(it.created_at, party?.timezone)}` : ''}`,
               amount: formatMoney(sym, it.amount),
               paid,
               action: markBtn

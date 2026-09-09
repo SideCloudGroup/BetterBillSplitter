@@ -328,10 +328,11 @@ WHERE pm.user_id=? AND (i.userid=? OR i.initiator=?)`, h.table("item"), h.table(
 		PartyID       uint64 `json:"party_id"`
 		PartyName     string `json:"party_name"`
 		BaseCurrency  string
+		Timezone      string
 		DebtorName    string
 		InitiatorName string
 	}
-	activityQuery := fmt.Sprintf(`SELECT i.id,i.description,i.amount,i.paid,i.created_at,i.initiator,i.userid,p.id party_id,p.name party_name,p.base_currency,du.username debtor_name,iu.username initiator_name
+	activityQuery := fmt.Sprintf(`SELECT i.id,i.description,i.amount,i.paid,i.created_at,i.initiator,i.userid,p.id party_id,p.name party_name,p.base_currency,p.timezone,du.username debtor_name,iu.username initiator_name
 FROM %s i JOIN %s p ON i.party_id=p.id JOIN %s pm ON i.party_id=pm.party_id
 JOIN %s du ON i.userid=du.id JOIN %s iu ON i.initiator=iu.id
 WHERE pm.user_id=? AND (i.initiator=? OR i.userid=?) AND NOT(i.initiator=? AND i.userid=?)
@@ -351,7 +352,7 @@ ORDER BY i.created_at DESC LIMIT 20`, h.table("item"), h.table("party"), h.table
 			counterparty = row.DebtorName
 			typeName = "initiated"
 		}
-		recentActivity = append(recentActivity, gin.H{"id": row.ID, "description": row.Description, "amount": row.Amount, "paid": row.Paid, "created_at": row.CreatedAt, "party_id": row.PartyID, "party_name": row.PartyName, "currency_symbol": h.currencySymbol(c, row.BaseCurrency), "type": typeName, "counterparty_name": counterparty})
+		recentActivity = append(recentActivity, gin.H{"id": row.ID, "description": row.Description, "amount": row.Amount, "paid": row.Paid, "created_at": row.CreatedAt, "party_id": row.PartyID, "party_name": row.PartyName, "timezone": row.Timezone, "currency_symbol": h.currencySymbol(c, row.BaseCurrency), "type": typeName, "counterparty_name": counterparty})
 	}
 	var defaultCurrency model.Currency
 	if h.db.WithContext(c).Table(h.table("currencies")).Where("is_default=1 AND is_active=1").First(&defaultCurrency).Error != nil {
@@ -556,7 +557,7 @@ func (h *Handler) partyItemList(c *gin.Context) {
 		}
 		items = append(items, gin.H{"id": row.ID, "description": row.Description, "amount": row.Amount, "paid": boolInt(row.Paid), "created_at": row.CreatedAt, "userid": row.UserID, "initiator": row.Initiator, "payer_name": row.PayerName, "initiator_name": row.InitiatorName, "is_my_initiation": mineInitiated, "is_my_payment": minePayment})
 	}
-	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"party": gin.H{"id": party.ID, "name": party.Name, "description": stringValue(party.Description), "currency_symbol": h.currencySymbol(c, party.BaseCurrency), "is_archived": party.ArchivedAt != nil}, "isOwner": party.OwnerID == user.ID, "items": items, "stats": gin.H{"total": stat.total, "unpaid": stat.unpaid, "my_initiated": stat.myInitiated, "my_payment": stat.myPayment, "total_amount": stat.totalAmount.String(), "unpaid_amount": stat.unpaidAmount.String(), "my_initiated_amount": stat.myInitiatedAmount.String(), "my_initiated_unpaid": stat.myInitiatedOpen.String(), "my_payment_amount": stat.myPaymentAmount.String()}}})
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"party": gin.H{"id": party.ID, "name": party.Name, "description": stringValue(party.Description), "timezone": party.Timezone, "currency_symbol": h.currencySymbol(c, party.BaseCurrency), "is_archived": party.ArchivedAt != nil}, "isOwner": party.OwnerID == user.ID, "items": items, "stats": gin.H{"total": stat.total, "unpaid": stat.unpaid, "my_initiated": stat.myInitiated, "my_payment": stat.myPayment, "total_amount": stat.totalAmount.String(), "unpaid_amount": stat.unpaidAmount.String(), "my_initiated_amount": stat.myInitiatedAmount.String(), "my_initiated_unpaid": stat.myInitiatedOpen.String(), "my_payment_amount": stat.myPaymentAmount.String()}}})
 }
 
 func (h *Handler) paymentByParty(c *gin.Context) {
@@ -586,7 +587,7 @@ func (h *Handler) paymentByParty(c *gin.Context) {
 		}
 		total += amount
 	}
-	partyView := gin.H{"id": party.ID, "name": party.Name, "description": stringValue(party.Description), "base_currency": party.BaseCurrency, "currency_symbol": h.currencySymbol(c, party.BaseCurrency)}
+	partyView := gin.H{"id": party.ID, "name": party.Name, "description": stringValue(party.Description), "timezone": party.Timezone, "base_currency": party.BaseCurrency, "currency_symbol": h.currencySymbol(c, party.BaseCurrency)}
 	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"party": partyView, "items": items, "totalAmount": total.String()}})
 }
 
