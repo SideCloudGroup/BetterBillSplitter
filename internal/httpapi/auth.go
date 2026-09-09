@@ -24,6 +24,7 @@ import (
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/appconfig"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/auth"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/currency"
+	"github.com/SideCloudGroup/BetterBillSplitter/internal/ledger"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/model"
 )
 
@@ -32,6 +33,8 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 type Handler struct {
 	db          *gorm.DB
 	tokens      *auth.TokenService
+	apiTokens   *auth.APITokenService
+	ledger      *ledger.Service
 	tickets     *auth.TicketStore
 	challenges  *auth.ChallengeStore
 	captchas    *auth.CaptchaStore
@@ -43,7 +46,12 @@ type Handler struct {
 }
 
 func NewHandler(db *gorm.DB, tokens *auth.TokenService, exchange *currency.Service, cfg appconfig.Config) *Handler {
-	return &Handler{db: db, tokens: tokens, tickets: auth.NewTicketStore(), challenges: auth.NewChallengeStore(), captchas: auth.NewCaptchaStore(), webSessions: auth.NewWebAuthnSessionStore(), httpClient: &http.Client{Timeout: 8 * time.Second}, exchange: exchange, cfg: cfg, tablePrefix: cfg.Database.TablePrefix}
+	return &Handler{
+		db: db, tokens: tokens, apiTokens: auth.NewAPITokenService(db, cfg.Database.TablePrefix),
+		ledger: ledger.New(db, cfg.Database.TablePrefix, exchange), tickets: auth.NewTicketStore(),
+		challenges: auth.NewChallengeStore(), captchas: auth.NewCaptchaStore(), webSessions: auth.NewWebAuthnSessionStore(),
+		httpClient: &http.Client{Timeout: 8 * time.Second}, exchange: exchange, cfg: cfg, tablePrefix: cfg.Database.TablePrefix,
+	}
 }
 
 func (h *Handler) Register(engine *gin.Engine) {
@@ -73,11 +81,16 @@ func (h *Handler) Register(engine *gin.Engine) {
 	userGroup.GET("/fido_reg", h.fidoRegisterChallenge)
 	userGroup.POST("/fido_reg", h.fidoRegisterVerify)
 	userGroup.DELETE("/fido_reg/:id", h.fidoDelete)
+	userGroup.GET("/tokens", h.listAPITokens)
+	userGroup.POST("/tokens", h.createAPIToken)
+	userGroup.DELETE("/tokens/:id", h.revokeAPIToken)
 	h.registerPartyRoutes(userGroup)
 	h.registerItemRoutes(userGroup)
 
 	engine.GET("/api/party/invite/:code", h.previewInvite)
 	h.registerAdminRoutes(engine)
+	h.registerV1Routes(engine)
+	h.registerMCP(engine)
 }
 
 func (h *Handler) bootstrap(c *gin.Context) {

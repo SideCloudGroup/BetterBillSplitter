@@ -107,7 +107,7 @@ func run(ctx context.Context) error {
 	server.Engine().StaticFile("/favicon.ico", "public/favicon.ico")
 	server.Engine().StaticFile("/robots.txt", "public/robots.txt")
 	server.Engine().NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") || c.Request.URL.Path == "/mcp" {
 			c.JSON(http.StatusNotFound, gin.H{"ret": 0, "msg": "接口不存在"})
 			return
 		}

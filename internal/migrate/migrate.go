@@ -227,5 +227,18 @@ ALTER TABLE %s ADD KEY idx_mfa_userid_type (userid, type), ADD KEY idx_mfa_rawid
 ALTER TABLE %s ADD KEY idx_item_party_paid (party_id, paid), ADD KEY idx_item_party_userid_paid (party_id, userid, paid), ADD KEY idx_item_party_initiator_paid (party_id, initiator, paid), ADD KEY idx_item_userid_paid (userid, paid), ADD KEY idx_item_initiator_paid (initiator, paid), ADD KEY idx_item_created_at (created_at);
 ALTER TABLE %s ADD KEY idx_party_owner_archived (owner_id, archived_at), ADD KEY idx_party_base_currency (base_currency);
 ALTER TABLE %s ADD KEY idx_refresh_user_revoked (user_id, revoked_at), ADD KEY idx_refresh_expires_at (expires_at)`, table("user"), table("setting"), quote("key"), table("mfa_credential"), table("item"), table("party"), table("refresh_tokens")))},
+		{20260909120000, "CreateAPITokensTable", []string{fmt.Sprintf(`CREATE TABLE %s (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(64) NOT NULL,
+  token_hash VARCHAR(64) NOT NULL,
+  token_prefix VARCHAR(16) NOT NULL,
+  expires_at DATETIME NULL,
+  revoked_at DATETIME NULL,
+  last_used_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_ip VARCHAR(45) NULL,
+  KEY user_id (user_id), UNIQUE KEY token_hash (token_hash), KEY idx_api_token_user_revoked (user_id, revoked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`, table("api_tokens"))}},
 	}
 }
