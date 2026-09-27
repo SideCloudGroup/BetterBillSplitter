@@ -384,8 +384,8 @@ type itemRow struct {
 	Amount        string    `json:"amount"`
 	Paid          bool      `json:"paid"`
 	CreatedAt     time.Time `json:"created_at"`
-	UserID        uint64    `json:"userid"`
-	Initiator     uint64    `json:"initiator"`
+	UserID        uint64    `gorm:"column:userid" json:"userid"`
+	Initiator     uint64    `gorm:"column:initiator" json:"initiator"`
 	PayerName     string    `json:"payer_name"`
 	InitiatorName string    `json:"initiator_name"`
 }
