@@ -398,8 +398,8 @@ func (h *Handler) showParty(c *gin.Context) {
 		Description   string `json:"description"`
 		Amount        string `json:"amount"`
 		Paid          bool   `json:"paid"`
-		UserID        uint64 `json:"userid"`
-		Initiator     uint64 `json:"initiator"`
+		UserID        uint64 `gorm:"column:userid" json:"userid"`
+		Initiator     uint64 `gorm:"column:initiator" json:"initiator"`
 		PayerName     string `json:"payer_name"`
 		InitiatorName string `json:"initiator_name"`
 	}

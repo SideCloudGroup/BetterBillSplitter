@@ -111,6 +111,17 @@ export function ItemAddPage() {
   }, [watchPartyId]);
 
   const headCount = selectedUsers.length;
+  const allMemberIds = useMemo(() => members.map((m) => m.id), [members]);
+  const allSelected = allMemberIds.length > 0 && allMemberIds.every((id) => selectedUsers.includes(id));
+
+  const toggleSelectAllUsers = () => {
+    const next = allSelected ? [] : allMemberIds;
+    const hadError = form.getFieldError('users').length > 0;
+    form.setFieldsValue({users: next});
+    if (next.length > 0 || hadError) {
+      void form.validateFields(['users']).catch(() => undefined);
+    }
+  };
   const preview = useMemo(() => {
     if (splitMode === 'custom') return null;
     const raw = Number(amountInput);
@@ -285,7 +296,26 @@ export function ItemAddPage() {
 
                   <Form.Item
                     name="users"
-                    label="记入谁名下（可多选）"
+                    className="bbs-member-select-item"
+                    label={
+                      <Flex align="center" justify="space-between" gap={8} className="bbs-member-select-label">
+                        <span>记入谁名下（可多选）</span>
+                        <Button
+                          type="link"
+                          size="small"
+                          htmlType="button"
+                          disabled={members.length === 0}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleSelectAllUsers();
+                          }}
+                        >
+                          {allSelected ? '取消全选' : '全选'}
+                        </Button>
+                      </Flex>
+                    }
                     rules={[{required: true, type: 'array', min: 1, message: '请至少选择一名成员'}]}
                   >
                     <Checkbox.Group
