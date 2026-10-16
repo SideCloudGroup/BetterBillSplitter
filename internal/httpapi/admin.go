@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/auth"
+	"github.com/SideCloudGroup/BetterBillSplitter/internal/currency"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/model"
 	"github.com/SideCloudGroup/BetterBillSplitter/internal/money"
 )
@@ -37,6 +38,7 @@ func (h *Handler) registerAdminRoutes(engine *gin.Engine) {
 	group.POST("/currency/edit", h.adminEditCurrency)
 	group.DELETE("/currency/delete", h.adminDeleteCurrency)
 	group.GET("/currencies", h.adminCurrencies)
+	group.POST("/currency/refresh", h.adminRefreshCurrency)
 	group.GET("/setting", h.adminSettings)
 	group.POST("/setting", h.adminUpdateSettings)
 }
@@ -329,7 +331,38 @@ func (h *Handler) partyStats(c *gin.Context, partyID uint64) gin.H {
 }
 
 func (h *Handler) adminCurrencies(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"currencies": h.availableCurrencies(c)}})
+	currencies := h.availableCurrencies(c)
+	statuses := make(map[string]currency.Status, len(currencies))
+	if h.exchange != nil {
+		for code := range currencies {
+			statuses[code] = h.exchange.Status(c, code)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "data": gin.H{"currencies": currencies, "exchange_status": statuses}})
+}
+
+func (h *Handler) adminRefreshCurrency(c *gin.Context) {
+	var input struct {
+		Code string `json:"code"`
+	}
+	if c.ShouldBindJSON(&input) != nil {
+		legacyError(c, "参数格式错误")
+		return
+	}
+	code := strings.ToLower(strings.TrimSpace(input.Code))
+	if _, ok := h.availableCurrencies(c)[code]; !ok {
+		legacyError(c, "货币不存在或未启用")
+		return
+	}
+	if h.exchange == nil {
+		legacyError(c, "汇率服务不可用")
+		return
+	}
+	if err := h.exchange.Refresh(c, code); err != nil {
+		legacyError(c, "汇率更新失败，请查看汇率状态中的失败原因")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ret": 1, "msg": "汇率已更新"})
 }
 
 type currencyInput struct {

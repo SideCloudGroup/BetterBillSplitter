@@ -23,6 +23,7 @@ pnpm-debug.log*
 
 # 测试与覆盖率
 coverage/
+.vitest/
 
 # 编辑器与系统（与仓库根 .gitignore 一致）
 .DS_Store

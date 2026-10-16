@@ -21,6 +21,7 @@ import {
 import {DollarOutlined, SettingOutlined, TeamOutlined, UserAddOutlined, UserOutlined} from '@ant-design/icons';
 import {apiFetch, apiJson, apiPostJson} from '@/api/client';
 import {PageShell, StatCard, SurfaceCard} from '@/components/ui';
+import {ExchangeStatusView, type ExchangeStatus} from '@/components/ExchangeStatusView';
 
 type AdminMetrics = {
   totalUsers?: number;
@@ -503,13 +504,15 @@ export function AdminPartyMembersPage() {
 }
 
 export function AdminCurrenciesPage() {
-  const [rows, setRows] = useState<{ code: string; name: string; symbol: string }[]>([]);
+  const {message: messageApi, modal} = App.useApp();
+  const [rows, setRows] = useState<{ code: string; name: string; symbol: string; exchange?: ExchangeStatus }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
 
   const load = async () => {
     const data = await apiJson<{
       ret: number;
-      data?: { currencies?: Record<string, { name?: string; symbol?: string }> }
+      data?: { currencies?: Record<string, { name?: string; symbol?: string }>; exchange_status?: Record<string, ExchangeStatus> }
     }>(
       '/admin/currencies',
     );
@@ -520,6 +523,7 @@ export function AdminCurrenciesPage() {
           code,
           name: meta.name || '',
           symbol: meta.symbol || '',
+          exchange: data.data?.exchange_status?.[code],
         })),
       );
     }
@@ -529,6 +533,20 @@ export function AdminCurrenciesPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const refresh = async (code: string) => {
+    setRefreshing(code);
+    try {
+      const res = await apiPostJson('/admin/currency/refresh', {code});
+      const out = (await res.json()) as {ret: number; msg?: string};
+      if (out.ret === 1) messageApi.success(out.msg || '汇率已更新');
+      else messageApi.error(out.msg || '汇率更新失败');
+    } catch {
+      messageApi.error('汇率更新请求失败');
+    } finally {
+      try { await load(); } catch { messageApi.error('汇率状态加载失败，请刷新页面'); } finally { setRefreshing(null); }
+    }
+  };
 
   const add = async (v: { code: string; name: string; name_en?: string; symbol: string }) => {
     const res = await apiPostJson('/admin/currency/add', {
@@ -540,22 +558,22 @@ export function AdminCurrenciesPage() {
     });
     const out = (await res.json()) as { ret: number; msg?: string };
     if (out.ret === 1) {
-      message.success(out.msg || '成功');
+      messageApi.success(out.msg || '成功');
       await load();
-    } else message.error(out.msg || '失败');
+    } else messageApi.error(out.msg || '失败');
   };
 
   const del = (code: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: `删除货币 ${code}？`,
       okType: 'danger',
       onOk: async () => {
         const res = await apiFetch(`/admin/currency/delete?code=${encodeURIComponent(code)}`, {method: 'DELETE'});
         const out = (await res.json()) as { ret: number; msg?: string };
         if (out.ret === 1) {
-          message.success(out.msg || '成功');
+          messageApi.success(out.msg || '成功');
           await load();
-        } else message.error(out.msg || '失败');
+        } else messageApi.error(out.msg || '失败');
       },
     });
   };
@@ -582,18 +600,29 @@ export function AdminCurrenciesPage() {
         </Form>
       </SurfaceCard>
       <SurfaceCard>
+        <Typography.Paragraph type="secondary">
+          汇率按需获取，缓存有效期为 1 小时。超过 24 小时未成功更新或最近更新失败时标红；上游数据超过 48 小时将拒绝使用。
+        </Typography.Paragraph>
         <Table
           rowKey="code"
           dataSource={rows}
           pagination={false}
+          scroll={{x: 820}}
           columns={[
             {title: '代码', dataIndex: 'code'},
             {title: '名称', dataIndex: 'name'},
             {title: '符号', dataIndex: 'symbol'},
             {
+              title: '汇率上次更新时间',
+              render: (_, r) => <ExchangeStatusView status={r.exchange}/>,
+            },
+            {
               title: '操作',
               render: (_, r) => (
                 <Space>
+                  <Button size="small" loading={refreshing === r.code} disabled={refreshing !== null} onClick={() => void refresh(r.code)}>
+                    更新汇率
+                  </Button>
                   <Link to={`/admin/currencies/edit/${encodeURIComponent(r.code)}`}>
                     <Button size="small">编辑</Button>
                   </Link>

@@ -1,4 +1,4 @@
-name: Go Tests
+name: Tests
 
 on:
   push:
@@ -24,4 +24,29 @@ jobs:
           cache: true
 
       - name: Run Go tests
-        run: go test ./...
+        run: go test "-coverprofile=coverage.out" ./...
+
+  frontend:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build

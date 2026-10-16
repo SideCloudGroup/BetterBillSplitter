@@ -70,7 +70,7 @@ func TestRegisterAllRoutesDoesNotConflict(t *testing.T) {
 		"POST /api/admin/party/force-join", "GET /api/admin/party/:partyId/members",
 		"POST /api/admin/party/members", "GET /api/admin/party", "GET /api/admin/currency/add-form",
 		"POST /api/admin/currency/add", "GET /api/admin/currency/edit-form", "POST /api/admin/currency/edit",
-		"DELETE /api/admin/currency/delete", "GET /api/admin/currencies", "GET /api/admin/setting",
+		"DELETE /api/admin/currency/delete", "GET /api/admin/currencies", "POST /api/admin/currency/refresh", "GET /api/admin/setting",
 		"POST /api/admin/setting",
 		"GET /api/v1/openapi.json", "GET /api/v1/docs", "GET /api/v1/me", "GET /api/v1/parties",
 		"GET /api/v1/parties/:partyId", "GET /api/v1/parties/:partyId/members",
